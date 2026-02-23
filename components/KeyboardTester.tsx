@@ -64,6 +64,9 @@ const KeyboardTester: React.FC<KeyboardTesterProps> = ({
         const newMappings = { ...mappings, [remappingKey]: key };
         onMappingChange(newMappings);
         setSuccessAnimationKey(remappingKey);
+        // Also highlight the target key
+        const targetKey = key;
+        setSuccessAnimationKey(prev => prev ? `${prev},${targetKey}` : targetKey);
         setTimeout(() => setSuccessAnimationKey(null), 1000);
         setRemappingKey(null);
         return;
@@ -278,7 +281,7 @@ const KeyboardTester: React.FC<KeyboardTesterProps> = ({
                   const isTested = testedKeys.has(keyId);
                   const isProblem = problemKeys.includes(keyId);
                   const isRemapping = remappingKey === keyId;
-                  const isSuccess = successAnimationKey === keyId;
+                  const isSuccess = successAnimationKey?.split(',').includes(keyId);
                   
                   let keyWidthClass = 'flex-1 min-w-0 max-w-[60px]';
                   if (key === ' ') keyWidthClass = 'flex-[6] min-w-[200px]';

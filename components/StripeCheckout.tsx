@@ -156,7 +156,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
           </button>
         </div>
 
-        <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y">
+        <div className="p-6">
           {clientSecret ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <Elements key={clientSecret} options={options} stripe={stripePromise}>
