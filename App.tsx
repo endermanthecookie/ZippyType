@@ -7,7 +7,7 @@ import {
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
   Keyboard as KeyboardIcon, Copy
 } from 'lucide-react';
-import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings } from './types';
+import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
 import { fetchTypingText } from './services/geminiService';
 import { fetchGithubTypingText } from './services/githubService';
 import { getCoachReport } from './services/coachService';
@@ -105,6 +105,16 @@ const App: React.FC = () => {
     return { ...DEFAULT_PROFILE };
   });
 
+  const [soundProfile, setSoundProfile] = useState<SoundProfile>(() => {
+    const saved = localStorage.getItem('sound_profile');
+    return (saved as SoundProfile) || SoundProfile.CLASSIC;
+  });
+
+  const [keyboardLayout, setKeyboardLayout] = useState<KeyboardLayout>(() => {
+    const saved = localStorage.getItem('keyboard_layout');
+    return (saved as KeyboardLayout) || KeyboardLayout.ANSI;
+  });
+
   const [pomodoroSettings, setPomodoroSettings] = useState<PomodoroSettings>(() => {
     try {
       const saved = localStorage.getItem('pomodoro_settings');
@@ -200,7 +210,9 @@ const App: React.FC = () => {
             ai_opponent_count: aiOpponentCount,
             ai_opponent_difficulty: aiOpponentDifficulty,
             calibrated_keys: Array.from(calibratedKeys),
-            key_mappings: keyMappings
+            key_mappings: keyMappings,
+            sound_profile: soundProfile,
+            keyboard_layout: keyboardLayout
           };
           await saveUserPreferences(user.id, prefs);
           setSaveStatus('saved');
@@ -660,10 +672,59 @@ const App: React.FC = () => {
       const gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
       const now = ctx.currentTime;
-      if (type === 'click') { osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05); osc.start(now); osc.stop(now + 0.05); }
-      else if (type === 'correct') { osc.frequency.setValueAtTime(800, now); gain.gain.setValueAtTime(0.03, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05); osc.start(now); osc.stop(now + 0.05); }
-      else if (type === 'error') { osc.type = 'square'; osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1); osc.start(now); osc.stop(now + 0.1); }
-      else if (type === 'finish') { osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.3); gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4); osc.start(now); osc.stop(now + 0.4); }
+
+      if (soundProfile === SoundProfile.MECHANICAL) {
+        if (type === 'click' || type === 'correct') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(120, now);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.start(now); osc.stop(now + 0.08);
+        } else if (type === 'error') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(80, now);
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'finish') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(300, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.start(now); osc.stop(now + 0.3);
+        }
+      } else if (soundProfile === SoundProfile.SYNTH) {
+        if (type === 'click' || type === 'correct') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1200, now);
+          osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+          gain.gain.setValueAtTime(0.02, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          osc.start(now); osc.stop(now + 0.1);
+        } else if (type === 'error') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(200, now);
+          osc.frequency.setValueAtTime(100, now + 0.05);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.start(now); osc.stop(now + 0.2);
+        } else if (type === 'finish') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.setValueAtTime(554.37, now + 0.1);
+          osc.frequency.setValueAtTime(659.25, now + 0.2);
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+          osc.start(now); osc.stop(now + 0.5);
+        }
+      } else {
+        // Classic Typewriter
+        if (type === 'click') { osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05); osc.start(now); osc.stop(now + 0.05); }
+        else if (type === 'correct') { osc.frequency.setValueAtTime(800, now); gain.gain.setValueAtTime(0.03, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05); osc.start(now); osc.stop(now + 0.05); }
+        else if (type === 'error') { osc.type = 'square'; osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1); osc.start(now); osc.stop(now + 0.1); }
+        else if (type === 'finish') { osc.type = 'triangle'; osc.frequency.setValueAtTime(440, now); osc.frequency.exponentialRampToValueAtTime(880, now + 0.3); gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4); osc.start(now); osc.stop(now + 0.4); }
+      }
     } catch {}
   };
 
@@ -865,6 +926,8 @@ const App: React.FC = () => {
                     setKeyMappings={setKeyMappings}
                     problemKeys={problemKeys}
                     setProblemKeys={setProblemKeys}
+                    layout={keyboardLayout}
+                    onLayoutChange={setKeyboardLayout}
                   />
                 )}
 
@@ -886,6 +949,23 @@ const App: React.FC = () => {
 
                 {activeSettingsTab === 'subscription' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
+                      <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <Volume2 size={14} className="text-indigo-400" /> Sound Profile
+                      </h3>
+                      <div className="grid grid-cols-3 gap-3">
+                        {Object.values(SoundProfile).map(p => (
+                          <button
+                            key={p}
+                            onClick={() => setSoundProfile(p)}
+                            className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${soundProfile === p ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-black/20 text-slate-500 border-white/5 hover:border-white/10'}`}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-4 p-6 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl border border-indigo-500/20">
                       <div className="p-4 bg-indigo-500 rounded-xl shadow-lg shadow-indigo-500/20">
                         <Rocket size={32} className="text-white" />
@@ -1256,7 +1336,27 @@ const App: React.FC = () => {
       {showSubscription && clientSecret && (
         <StripeCheckout 
           clientSecret={clientSecret} 
-          onSuccess={() => { setShowSubscription(false); alert('Welcome to ZippyType Pro!'); }} 
+          onSuccess={async () => { 
+            const newProfile = { ...profile, is_pro: true };
+            setProfile(newProfile);
+            setShowSubscription(false); 
+            alert('Welcome to ZippyType Pro! Your account has been upgraded.');
+            if (user) {
+              const prefs: UserPreferences = { 
+                ai_provider: provider, 
+                github_token: githubToken, 
+                user_profile: newProfile,
+                pomodoro_settings: pomodoroSettings,
+                ai_opponent_count: aiOpponentCount,
+                ai_opponent_difficulty: aiOpponentDifficulty,
+                calibrated_keys: Array.from(calibratedKeys),
+                key_mappings: keyMappings,
+                sound_profile: soundProfile,
+                keyboard_layout: keyboardLayout
+              };
+              await saveUserPreferences(user.id, prefs);
+            }
+          }} 
           onClose={() => setShowSubscription(false)} 
         />
       )}

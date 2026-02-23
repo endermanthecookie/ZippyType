@@ -114,6 +114,21 @@ interface StripeCheckoutProps {
 }
 
 export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, onSuccess, onClose }) => {
+  const [memberCount, setMemberCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/member-count')
+      .then(res => res.json())
+      .then(data => setMemberCount(data.count))
+      .catch(() => setMemberCount(1242));
+  }, []);
+
+  const getOrdinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
   const options = useMemo(() => ({
     clientSecret,
     appearance: stripeAppearance,
@@ -121,11 +136,18 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-      <div className="w-full max-w-md my-auto bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-300">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500" />
+      <div className="w-full max-w-md my-auto bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl relative animate-in zoom-in-95 duration-300">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 rounded-t-3xl" />
         
         <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <h3 className="text-lg font-black text-white tracking-tight">Secure Checkout</h3>
+          <div className="space-y-1">
+            <h3 className="text-lg font-black text-white tracking-tight">Secure Checkout</h3>
+            {memberCount !== null && (
+              <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
+                You will be our {getOrdinal(memberCount + 1)} member!
+              </p>
+            )}
+          </div>
           <button 
             onClick={onClose}
             className="p-2 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors"
@@ -134,7 +156,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
           </button>
         </div>
 
-        <div className="p-6 max-h-[60vh] sm:max-h-[75vh] overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y">
+        <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y">
           {clientSecret ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <Elements key={clientSecret} options={options} stripe={stripePromise}>

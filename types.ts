@@ -40,10 +40,23 @@ export enum AppView {
   TUTORIALS = 'tutorials'
 }
 
+export enum SoundProfile {
+  CLASSIC = 'classic',
+  MECHANICAL = 'mechanical',
+  SYNTH = 'synth'
+}
+
+export enum KeyboardLayout {
+  ANSI = 'ansi',
+  ISO = 'iso',
+  JIS = 'jis'
+}
+
 export interface UserProfile {
   username: string;
   avatar: string;
   accentColor: string;
+  is_pro?: boolean;
 }
 
 export interface PomodoroSettings {
@@ -61,6 +74,8 @@ export interface UserPreferences {
   ai_opponent_difficulty: Difficulty;
   calibrated_keys: string[];
   key_mappings: Record<string, string>;
+  sound_profile?: SoundProfile;
+  keyboard_layout?: KeyboardLayout;
 }
 
 export interface PowerUp {

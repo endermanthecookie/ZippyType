@@ -86,6 +86,8 @@ export const saveUserPreferences = async (userId: string, prefs: UserPreferences
       ai_opponent_difficulty: prefs.ai_opponent_difficulty,
       calibrated_keys: prefs.calibrated_keys,
       key_mappings: prefs.key_mappings,
+      sound_profile: prefs.sound_profile,
+      keyboard_layout: prefs.keyboard_layout,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
   
@@ -116,7 +118,9 @@ export const loadUserPreferences = async (userId: string): Promise<UserPreferenc
       ai_opponent_count: data.ai_opponent_count || 1,
       ai_opponent_difficulty: (data.ai_opponent_difficulty as Difficulty) || Difficulty.MEDIUM,
       calibrated_keys: data.calibrated_keys || [],
-      key_mappings: data.key_mappings || {}
+      key_mappings: data.key_mappings || {},
+      sound_profile: data.sound_profile,
+      keyboard_layout: data.keyboard_layout
     };
   } catch (e) {
     console.error('Load preferences failed', e);

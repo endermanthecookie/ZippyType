@@ -30,6 +30,13 @@ async function startServer() {
   // Middleware to parse JSON bodies
   app.use(express.json());
 
+  // In-memory member count for demo purposes
+  let memberCount = 1242;
+
+  app.get('/api/member-count', (req, res) => {
+    res.json({ count: memberCount });
+  });
+
   // Stripe Subscription Endpoint
   app.post('/api/create-subscription-intent', async (req, res) => {
     try {
