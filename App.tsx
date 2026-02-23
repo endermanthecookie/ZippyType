@@ -187,6 +187,9 @@ const App: React.FC = () => {
     } else if (window.location.pathname === '/redirect') {
       setCurrentView(AppView.REDIRECT);
     }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('zippy_problem_keys', JSON.stringify(problemKeys));
   }, [problemKeys]);
 
@@ -349,7 +352,9 @@ const App: React.FC = () => {
             const used = await checkIpSoloUsage();
             setHasUsedSolo(used);
             setHistory([]);
-            setCurrentView(AppView.GAME);
+            if (window.location.pathname !== '/pandc' && window.location.pathname !== '/redirect') {
+              setCurrentView(AppView.GAME);
+            }
           }
         };
 
