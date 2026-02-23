@@ -481,7 +481,11 @@ const App: React.FC = () => {
       console.error("AI text generation failed.", e);
       if (rid !== requestCounter.current) return;
       setLoading(false); 
-      if (!showGeminiError) setCurrentText("Failed to load AI text. Check connection or token.");
+      if (provider === AIProvider.GEMINI) {
+        setShowGeminiError(true);
+      } else {
+        setCurrentText("Failed to load AI text. Check connection or token.");
+      }
     }
   };
 
@@ -495,9 +499,15 @@ const App: React.FC = () => {
     if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER) {
       if (!roomId) return;
       setLoading(true);
-      const text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
-      socketRef.current?.emit('start-game', { roomId, text: normalizeText(text.trim()) });
-      setLoading(false);
+      try {
+        const text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
+        socketRef.current?.emit('start-game', { roomId, text: normalizeText(text.trim()) });
+      } catch (e) {
+        console.error("Multiplayer start failed:", e);
+        if (provider === AIProvider.GEMINI) setShowGeminiError(true);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 

@@ -5,7 +5,7 @@ import { stripeAppearance } from './StripeConfig';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
 
 // Replace with your publishable key
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51T2vpI0AlKSl27CKYtFrULhI1NMYDeKod77bdYN3DapHAonav40c9aBzpUl5fhyKm2bejqfl92WPrQPpOubpiGs300xj9fJ2Lr');
 
 interface CheckoutFormProps {
   onSuccess: () => void;
@@ -120,8 +120,8 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
   }), [clientSecret]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div className="w-full max-w-md my-auto bg-[#0f172a] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-300">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500" />
         
         <div className="p-6 border-b border-white/5 flex items-center justify-between">
@@ -134,11 +134,13 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
           </button>
         </div>
 
-        <div className="p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+        <div className="p-6 max-h-[60vh] sm:max-h-[75vh] overflow-y-auto custom-scrollbar overscroll-contain touch-pan-y">
           {clientSecret ? (
-            <Elements key={clientSecret} options={options} stripe={stripePromise}>
-              <CheckoutForm onSuccess={onSuccess} onCancel={onClose} />
-            </Elements>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <Elements key={clientSecret} options={options} stripe={stripePromise}>
+                <CheckoutForm onSuccess={onSuccess} onCancel={onClose} />
+              </Elements>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 gap-4 text-slate-500">
               <Loader2 className="animate-spin" size={32} />

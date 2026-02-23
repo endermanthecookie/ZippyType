@@ -26,7 +26,7 @@ export const fetchTypingText = async (
   - Return ONLY the sentence text. No quotes. No extra labels.`;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
@@ -50,7 +50,7 @@ export const fetchCoachNote = async (wpm: number, accuracy: number, errors: numb
   Provide a single, insightful, motivating sentence of feedback (max 20 words).`;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
