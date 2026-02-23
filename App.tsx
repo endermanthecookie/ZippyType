@@ -30,6 +30,7 @@ import { Analytics } from "@vercel/analytics/react"
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
 import { StripeCheckout } from './components/StripeCheckout';
+import { Logo } from './components/Logo';
 
 const RGB_MAP = {
   indigo: '99, 102, 241',
@@ -803,7 +804,9 @@ const App: React.FC = () => {
       <div className="max-w-4xl w-full space-y-6">
         <header className="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-[1.75rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner"><Rocket style={{ color: 'rgb(var(--accent-primary))' }} size={24} /></div>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden">
+              <Logo className="w-8 h-8" />
+            </div>
             <div>
               <h1 className="text-base font-black text-white uppercase tracking-tighter leading-none mb-1">ZippyType</h1>
               <div className="flex items-center gap-2">
