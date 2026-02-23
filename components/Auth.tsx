@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase, linkUserToIp } from '../services/supabaseService';
 import { X, Loader2, Sparkles, LogIn, UserPlus, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 
@@ -16,6 +16,24 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      
+      if (event.data?.type === 'OAUTH_SUCCESS' && event.data.session) {
+        await supabase.auth.setSession(event.data.session);
+        onClose();
+      }
+      if (event.data?.type === 'OAUTH_ERROR') {
+          setError(event.data.error);
+          setLoading(false);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [onClose]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,13 +187,31 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
               setLoading(true);
               setError(null);
               try {
-                const { error } = await supabase.auth.signInWithOAuth({
+                const { data, error } = await supabase.auth.signInWithOAuth({
                   provider: 'google',
                   options: {
                     redirectTo: `${window.location.origin}/redirect`,
+                    skipBrowserRedirect: true,
                   },
                 });
                 if (error) throw error;
+
+                if (data?.url) {
+                    const width = 500;
+                    const height = 600;
+                    const left = window.screen.width / 2 - width / 2;
+                    const top = window.screen.height / 2 - height / 2;
+                    
+                    const popup = window.open(
+                        data.url,
+                        'google-auth',
+                        `width=${width},height=${height},left=${left},top=${top}`
+                    );
+
+                    if (!popup) {
+                        throw new Error('Popup blocked. Please allow popups.');
+                    }
+                }
               } catch (err: any) {
                 setError(err.message);
                 setLoading(false);

@@ -57,3 +57,18 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Public can read daily challenge" 
 ON daily FOR SELECT 
 USING (true);
+
+-- 8. Additional Policies for IP tracking
+CREATE POLICY "Allow public access to anonymous_runs" 
+ON anonymous_runs FOR ALL 
+USING (true) 
+WITH CHECK (true);
+
+CREATE POLICY "Allow public read access to ip_sessions" 
+ON ip_sessions FOR SELECT 
+USING (true);
+
+CREATE POLICY "Allow authenticated users to manage their ip_sessions" 
+ON ip_sessions FOR ALL 
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);

@@ -18,6 +18,7 @@ import HistoryChart from './components/HistoryChart';
 import KeyboardTester from './components/KeyboardTester';
 import TypingGuide from './components/TypingGuide';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import OAuthCallback from './components/OAuthCallback';
 import Auth from './components/Auth';
 import PomodoroTimer from './components/PomodoroTimer';
 import Tutorials from './components/Tutorials';
@@ -183,6 +184,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (window.location.pathname === '/pandc') {
       setCurrentView(AppView.PRIVACY);
+    } else if (window.location.pathname === '/redirect') {
+      setCurrentView(AppView.REDIRECT);
     }
     localStorage.setItem('zippy_problem_keys', JSON.stringify(problemKeys));
   }, [problemKeys]);
@@ -777,7 +780,16 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="glass border border-white/10 w-full max-w-sm rounded-[1.5rem] p-8 shadow-2xl text-center space-y-6">
             <div className="flex justify-center"><div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl"><AlertCircle size={32} /></div></div>
-            <div className="space-y-2"><h3 className="text-sm font-black text-white uppercase tracking-tighter">Login Required</h3><p className="text-[11px] font-medium text-slate-400">Please sign in to access this feature.</p></div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">
+                {hasUsedSolo ? "Daily Limit Reached" : "Login Required"}
+              </h3>
+              <p className="text-[11px] font-medium text-slate-400">
+                {hasUsedSolo 
+                  ? "You've used your free daily solo run. Sign in to play unlimited!" 
+                  : "Please sign in to access this feature."}
+              </p>
+            </div>
             <div className="flex flex-col gap-3">
               <button onClick={() => { setShowRestrictedModal(false); setShowAuth(true); }} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-lg transition-all shadow-xl uppercase tracking-widest text-[9px]">Log in / Sign up</button>
               <button onClick={() => setShowRestrictedModal(false)} className="w-full py-3 bg-white/5 hover:bg-white/10 text-slate-400 font-bold rounded-lg transition-all uppercase tracking-widest text-[8px]">Dismiss</button>
@@ -1044,6 +1056,10 @@ const App: React.FC = () => {
             window.history.pushState({}, '', '/');
             setCurrentView(AppView.GAME);
           }} />
+        ) : currentView === AppView.REDIRECT ? (
+          <div className="w-full h-screen flex items-center justify-center">
+            <OAuthCallback />
+          </div>
         ) : (
           <div className="space-y-8">
             <div className="flex flex-col gap-6 items-center w-full">
