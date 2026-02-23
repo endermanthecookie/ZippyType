@@ -37,7 +37,8 @@ export enum AppView {
   GAME = 'game',
   SETTINGS = 'settings',
   PROFILE = 'profile',
-  TUTORIALS = 'tutorials'
+  TUTORIALS = 'tutorials',
+  PRIVACY = 'privacy'
 }
 
 export enum SoundProfile {

@@ -128,6 +128,17 @@ export const loadUserPreferences = async (userId: string): Promise<UserPreferenc
   }
 };
 
+export const signInWithGoogle = async () => {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/redirect`,
+    },
+  });
+  if (error) throw error;
+  return data;
+};
+
 export const linkUserToIp = async (userId: string) => {
   try {
     const res = await fetch('https://api.ipify.org?format=json');

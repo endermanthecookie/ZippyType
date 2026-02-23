@@ -17,6 +17,7 @@ import StatsCard from './components/StatsCard';
 import HistoryChart from './components/HistoryChart';
 import KeyboardTester from './components/KeyboardTester';
 import TypingGuide from './components/TypingGuide';
+import PrivacyPolicy from './components/PrivacyPolicy';
 import Auth from './components/Auth';
 import PomodoroTimer from './components/PomodoroTimer';
 import Tutorials from './components/Tutorials';
@@ -180,6 +181,9 @@ const App: React.FC = () => {
   const saveTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (window.location.pathname === '/pandc') {
+      setCurrentView(AppView.PRIVACY);
+    }
     localStorage.setItem('zippy_problem_keys', JSON.stringify(problemKeys));
   }, [problemKeys]);
 
@@ -1035,6 +1039,11 @@ const App: React.FC = () => {
           </div>
         ) : currentView === AppView.TUTORIALS ? (
           <Tutorials />
+        ) : currentView === AppView.PRIVACY ? (
+          <PrivacyPolicy onBack={() => {
+            window.history.pushState({}, '', '/');
+            setCurrentView(AppView.GAME);
+          }} />
         ) : (
           <div className="space-y-8">
             <div className="flex flex-col gap-6 items-center w-full">
