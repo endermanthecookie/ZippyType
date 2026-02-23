@@ -29,6 +29,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react"
 import { Analytics } from "@vercel/analytics/react"
 import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
+import { StripeCheckout } from './components/StripeCheckout';
 
 const RGB_MAP = {
   indigo: '99, 102, 241',
@@ -59,10 +60,6 @@ const POWER_UP_REFS = {
 };
 
 const normalizeText = (text: string) => text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/—/g, "-").replace(/…/g, "...");
-
-import { StripeCheckout } from './components/StripeCheckout';
-
-// ... (existing imports)
 
 const App: React.FC = () => {
   const [showSubscription, setShowSubscription] = useState(false);
@@ -1364,15 +1361,17 @@ const App: React.FC = () => {
       <SpeedInsights />
       <Analytics />
       <footer className="w-full max-w-4xl py-6 flex justify-center">
-        <button 
-          onClick={() => {
+        <a 
+          href="/pandc"
+          onClick={(e) => {
+            e.preventDefault();
             window.history.pushState({}, '', '/pandc');
             setCurrentView(AppView.PRIVACY);
           }}
           className="text-[10px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors"
         >
-          Privacy & Policy
-        </button>
+          Privacy Policy
+        </a>
       </footer>
       {showSubscription && clientSecret && (
         <StripeCheckout 
