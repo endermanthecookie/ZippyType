@@ -1363,6 +1363,17 @@ const App: React.FC = () => {
       </div>
       <SpeedInsights />
       <Analytics />
+      <footer className="w-full max-w-4xl py-6 flex justify-center">
+        <button 
+          onClick={() => {
+            window.history.pushState({}, '', '/pandc');
+            setCurrentView(AppView.PRIVACY);
+          }}
+          className="text-[10px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors"
+        >
+          Privacy & Policy
+        </button>
+      </footer>
       {showSubscription && clientSecret && (
         <StripeCheckout 
           clientSecret={clientSecret} 
