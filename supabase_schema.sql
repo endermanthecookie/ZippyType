@@ -1,22 +1,21 @@
--- Enable Realtime for rooms and participants
-alter publication supabase_realtime add table rooms;
-alter publication supabase_realtime add table room_participants;
+-- Enable pgcrypto for gen_random_uuid()
+create extension if not exists pgcrypto;
 
 -- Rooms table
-create table if not exists rooms (
+create table if not exists public.rooms (
   id uuid default gen_random_uuid() primary key,
   host_id uuid references auth.users(id),
   status text default 'waiting' check (status in ('waiting', 'playing', 'finished')),
   text text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  created_at timestamp with time zone default now() not null,
   is_public boolean default true,
-  region text default 'global' -- For "local" filtering
+  region text default 'global'
 );
 
 -- Room Participants table
-create table if not exists room_participants (
+create table if not exists public.room_participants (
   id uuid default gen_random_uuid() primary key,
-  room_id uuid references rooms(id) on delete cascade,
+  room_id uuid references public.rooms(id) on delete cascade,
   user_id uuid references auth.users(id),
   username text,
   avatar text,
@@ -24,20 +23,68 @@ create table if not exists room_participants (
   wpm integer default 0,
   errors integer default 0,
   is_ready boolean default false,
-  joined_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(room_id, user_id)
+  joined_at timestamp with time zone default now() not null,
+  constraint room_participants_room_user_unique unique(room_id, user_id)
 );
 
--- Policies (Simplified for demo, refine for production)
-alter table rooms enable row level security;
-create policy "Public rooms are viewable by everyone" on rooms for select using (true);
-create policy "Users can create rooms" on rooms for insert with check (auth.uid() = host_id);
-create policy "Hosts can update their rooms" on rooms for update using (auth.uid() = host_id);
+-- User Credits Table
+create table if not exists public.user_credits (
+  user_id uuid references auth.users(id) primary key,
+  credits integer default 10,
+  updated_at timestamp with time zone default now()
+);
 
-alter table room_participants enable row level security;
-create policy "Participants are viewable by everyone" on room_participants for select using (true);
-create policy "Users can join rooms" on room_participants for insert with check (auth.uid() = user_id);
-create policy "Users can update their own status" on room_participants for update using (auth.uid() = user_id);
+-- RLS Policies
+alter table public.rooms enable row level security;
 
--- User Credits (Simple implementation)
-alter table auth.users add column if not exists credits integer default 10;
+-- Drop existing policies if they exist to avoid errors on re-run (optional but good practice)
+drop policy if exists "Public rooms are viewable by everyone" on public.rooms;
+create policy "Public rooms are viewable by everyone" on public.rooms for select using (true);
+
+drop policy if exists "Users can create rooms" on public.rooms;
+create policy "Users can create rooms" on public.rooms for insert with check ((select auth.uid()) = host_id);
+
+drop policy if exists "Hosts can update their rooms" on public.rooms;
+create policy "Hosts can update their rooms" on public.rooms for update using ((select auth.uid()) = host_id);
+
+alter table public.room_participants enable row level security;
+
+drop policy if exists "Participants are viewable by everyone" on public.room_participants;
+create policy "Participants are viewable by everyone" on public.room_participants for select using (true);
+
+drop policy if exists "Users can join rooms" on public.room_participants;
+create policy "Users can join rooms" on public.room_participants for insert with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can update their own status" on public.room_participants;
+create policy "Users can update their own status" on public.room_participants for update using ((select auth.uid()) = user_id);
+
+alter table public.user_credits enable row level security;
+
+drop policy if exists "Users can view their own credits" on public.user_credits;
+create policy "Users can view their own credits" on public.user_credits for select using ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can update their own credits" on public.user_credits;
+create policy "Users can update their own credits" on public.user_credits for update using ((select auth.uid()) = user_id);
+
+-- Function to decrement credits safely
+create or replace function public.decrement_credits(user_id_arg uuid)
+returns void as $$
+begin
+  update public.user_credits
+  set credits = credits - 1
+  where user_id = user_id_arg and credits > 0;
+end;
+$$ language plpgsql security definer;
+
+-- Enable Realtime
+-- We use a do block to avoid errors if table is already in publication
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'rooms') then
+    alter publication supabase_realtime add table public.rooms;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'room_participants') then
+    alter publication supabase_realtime add table public.room_participants;
+  end if;
+end;
+$$;

@@ -37,6 +37,7 @@ export enum AppView {
   GAME = 'game',
   SETTINGS = 'settings',
   PROFILE = 'profile',
+  HISTORY = 'history',
   TUTORIALS = 'tutorials',
   PRIVACY = 'privacy',
   REDIRECT = 'redirect'

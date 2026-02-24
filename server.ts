@@ -6,6 +6,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import Stripe from 'stripe';
+import { GoogleGenAI } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +36,38 @@ async function startServer() {
 
   app.get('/api/member-count', (req, res) => {
     res.json({ count: memberCount });
+  });
+
+  // Logo Generation Endpoint
+  app.get('/api/generate-logo', async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "GEMINI_API_KEY not found" });
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = "A high-resolution (500x500) square logo for a typing app called 'ZippyType'. The logo features a sharp, fast-looking 'Z' shape in a vibrant indigo and pink gradient. Below the 'Z' icon, the text 'ZippyType' is written in a modern, bold, clean sans-serif font. The background is completely transparent (no white or black background). The style is minimalist, professional, and high-tech, matching a high-performance typing trainer. The 'Z' icon has a subtle glow effect.";
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { aspectRatio: "1:1" } },
+      });
+
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const buffer = Buffer.from(part.inlineData.data, 'base64');
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Content-Disposition', 'attachment; filename="Logo.png"');
+          return res.send(buffer);
+        }
+      }
+      res.status(500).json({ error: "No image data found" });
+    } catch (error: any) {
+      console.error('Logo generation error:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Stripe Subscription Endpoint

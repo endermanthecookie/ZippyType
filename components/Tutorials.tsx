@@ -1,50 +1,50 @@
 
 import React from 'react';
-import { BookOpen, Target, Zap, ShieldCheck, Keyboard, MousePointer2, Info } from 'lucide-react';
+import { BookOpen, Target, Zap, ShieldCheck, Keyboard, MousePointer2, Info, Sparkles } from 'lucide-react';
 
 const TUTORIALS = [
   {
     id: 'posture',
-    title: 'Posture & Ergonomics',
+    title: 'Tactical Posture',
     icon: <ShieldCheck className="text-emerald-400" />,
-    description: 'The foundation of speed is health. Keep your back straight and wrists slightly elevated.',
+    description: 'The foundation of elite speed is ergonomic stability. Your body is a precision instrument.',
     tips: [
-      'Elbows at a 90-degree angle.',
-      'Feet flat on the floor.',
-      'Top of screen at eye level.'
+      'Elbows at a 90-degree angle, floating above the desk.',
+      'Feet flat on the floor to ground your kinetic energy.',
+      'Top of screen at eye level to prevent neck fatigue.'
     ]
   },
   {
     id: 'touch-typing',
-    title: 'Master Touch Typing',
+    title: 'Neural Touch Mapping',
     icon: <Keyboard className="text-indigo-400" />,
-    description: 'Type without looking at the keys. Use the tactical guide to learn finger placement.',
+    description: 'Eliminate the visual feedback loop. Trust your muscle memory to map the grid.',
     tips: [
-      'Index fingers on F and J (the bumps).',
-      'Each finger has a specific "lane".',
-      'Keep your eyes on the screen, not your hands.'
+      'Index fingers on F and J (the tactical bumps).',
+      'Each finger owns a specific vertical lane.',
+      'Eyes locked on the target text, never the hardware.'
     ]
   },
   {
     id: 'accuracy',
-    title: 'Slow is Fast',
+    title: 'Precision Over Velocity',
     icon: <Target className="text-rose-400" />,
-    description: 'Accuracy builds muscle memory. Speed is a byproduct of perfect precision.',
+    description: 'Speed is a byproduct of perfect accuracy. Slow is smooth, and smooth is fast.',
     tips: [
-      'Aim for 98%+ accuracy always.',
-      'Slow down for difficult words.',
-      'Correct errors immediately.'
+      'Maintain 98%+ accuracy to reinforce neural pathways.',
+      'Decelerate for complex character combinations.',
+      'Correct errors instantly to maintain rhythm.'
     ]
   },
   {
     id: 'rhythm',
-    title: 'Consistent Rhythm',
+    title: 'Kinetic Rhythm',
     icon: <Zap className="text-amber-400" />,
-    description: 'Speed is about the flow, not individual bursts. Avoid hesitation.',
+    description: 'Typing is a flow state. Maintain a steady cadence to minimize cognitive load.',
     tips: [
-      'Type to a steady beat.',
-      'Read ahead by 2-3 words.',
-      'Minimize finger movements.'
+      'Type to a consistent internal metronome.',
+      'Buffer 3-4 words ahead in your visual cortex.',
+      'Minimize finger travel distance for maximum efficiency.'
     ]
   }
 ];
@@ -53,14 +53,17 @@ const Tutorials: React.FC = () => {
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center space-y-3">
-        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Tactical Academy</h2>
-        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">Learn the secrets of triple-digit typing speed</p>
+        <h2 className="text-3xl font-black text-white uppercase tracking-tighter">Tactical Academy</h2>
+        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">Master the art of high-velocity data entry</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {TUTORIALS.map((t) => (
-          <div key={t.id} className="glass p-8 rounded-[2.5rem] border border-white/10 hover:border-indigo-500/30 transition-all group">
-            <div className="flex items-start gap-6">
+          <div key={t.id} className="glass p-8 rounded-[2.5rem] border border-white/10 hover:border-indigo-500/30 transition-all group relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
+              {t.icon}
+            </div>
+            <div className="flex items-start gap-6 relative z-10">
               <div className="p-4 bg-white/5 rounded-2xl group-hover:scale-110 transition-transform shadow-inner border border-white/5">
                 {t.icon}
               </div>
@@ -69,9 +72,9 @@ const Tutorials: React.FC = () => {
                 <p className="text-slate-400 text-xs leading-relaxed font-medium">{t.description}</p>
                 <ul className="space-y-2">
                   {t.tips.map((tip, idx) => (
-                    <li key={idx} className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                      <div className="w-1 h-1 rounded-full bg-indigo-500" />
-                      {tip}
+                    <li key={idx} className="flex items-start gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1 shrink-0" />
+                      <span>{tip}</span>
                     </li>
                   ))}
                 </ul>
@@ -81,13 +84,32 @@ const Tutorials: React.FC = () => {
         ))}
       </div>
 
-      <div className="glass p-8 rounded-[2rem] border border-white/10 bg-indigo-500/5">
+      <div className="glass p-10 rounded-[2.5rem] border border-white/10 bg-indigo-500/5 space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-xl"><Sparkles size={24} /></div>
+          <div>
+            <h4 className="text-xs font-black text-white uppercase tracking-widest">Veo 3 Training Prompt</h4>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Generate your own immersive training video</p>
+          </div>
+        </div>
+        
+        <div className="bg-black/40 p-6 rounded-2xl border border-white/5 font-mono text-[11px] text-indigo-300 leading-relaxed select-all cursor-copy group relative">
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[8px] uppercase tracking-widest text-slate-500">Click to copy</div>
+          "Cinematic, high-detail close-up of a professional typist's hands on a high-end mechanical keyboard with RGB lighting. The lighting is a moody indigo and teal. The camera moves in a slow, smooth orbit around the hands. The fingers move with extreme precision and speed, demonstrating perfect touch typing technique. The background is a blurred, futuristic data center with floating holographic code. 4K resolution, photorealistic, 60fps, professional lighting, shallow depth of field."
+        </div>
+
+        <p className="text-slate-400 text-xs italic leading-relaxed text-center">
+          "Copy this prompt into Veo 3 to generate a high-fidelity visual reference for your training sessions."
+        </p>
+      </div>
+
+      <div className="glass p-8 rounded-[2rem] border border-white/10 bg-slate-900/40">
         <div className="flex items-center gap-4 mb-4">
           <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg"><Info size={20} /></div>
           <h4 className="text-xs font-black text-white uppercase tracking-widest">Pro Tip</h4>
         </div>
         <p className="text-slate-400 text-xs italic leading-relaxed">
-          "Don't just practice often, practice correctly. Muscle memory is indiscriminate—it will learn bad habits just as easily as good ones. Use the 'Keyboard Hardware Check' in settings to ensure your inputs are clean."
+          "Don't just practice often, practice correctly. Muscle memory is indiscriminate—it will learn bad habits just as easily as good ones. Use the 'Hardware Tactical Lab' in settings to ensure your physical inputs are clean and calibrated."
         </p>
       </div>
     </div>

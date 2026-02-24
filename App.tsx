@@ -11,7 +11,7 @@ import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, Power
 import { fetchTypingText } from './services/geminiService';
 import { fetchGithubTypingText } from './services/githubService';
 import { getCoachReport } from './services/coachService';
-import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, recordIpSoloUsage, getUserIdByIp, getDailyText } from './services/supabaseService';
+import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, recordIpSoloUsage, getUserIdByIp, getDailyText, initializeUserCredits, saveHistory, fetchHistory as fetchHistoryService } from './services/supabaseService';
 import { saveZippyData, loadZippyData, ZippyStats } from './services/storageService';
 import StatsCard from './components/StatsCard';
 import HistoryChart from './components/HistoryChart';
@@ -25,11 +25,13 @@ import Tutorials from './components/Tutorials';
 import AISettings from './components/settings/AISettings';
 import HardwareSettings from './components/settings/HardwareSettings';
 import PomodoroSettingsView from './components/settings/PomodoroSettings';
-import { SpeedInsights } from "@vercel/speed-insights/react"
-import { Analytics } from "@vercel/analytics/react"
+// import { SpeedInsights } from "@vercel/speed-insights/react"
+// import { Analytics } from "@vercel/analytics/react"
 import { motion, AnimatePresence } from 'motion/react';
 import { StripeCheckout } from './components/StripeCheckout';
 import { Logo } from './components/Logo';
+import HistoryView from './components/HistoryView';
+import MultiplayerLobby from './components/MultiplayerLobby';
 
 const RGB_MAP = {
   indigo: '99, 102, 241',
@@ -166,6 +168,7 @@ const App: React.FC = () => {
   const [streak, setStreak] = useState(0);
   const [players, setPlayers] = useState<PlayerState[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomRegion, setRoomRegion] = useState<'global' | 'local'>('global');
   const [hostId, setHostId] = useState<string | null>(null);
   const [joinRoomId, setJoinRoomId] = useState("");
   const [isShaking, setIsShaking] = useState(false);
@@ -241,74 +244,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        // Initialize Socket
-        socketRef.current = io();
-        
-        socketRef.current.on('connect', () => setSocketConnected(true));
-        socketRef.current.on('disconnect', () => setSocketConnected(false));
-        
-        socketRef.current.on('room-created', (id) => setRoomId(id));
-        socketRef.current.on('room-joined', (id) => setRoomId(id));
-        socketRef.current.on('room-update', (room) => {
-          setHostId(room.hostId);
-          setPlayers(prev => {
-            const myId = (user?.id || 'guest-' + socketRef.current?.id);
-            // Merge room players with local players (like ghost)
-            const otherPlayers = room.players.filter((p: any) => p.id !== myId);
-            const me = room.players.find((p: any) => p.id === myId) || prev.find(p => p.id === myId);
-            const ghost = prev.find(p => p.isGhost);
-            
-            const newList = [];
-            if (me) newList.push(me);
-            if (ghost) newList.push(ghost);
-            newList.push(...otherPlayers);
-            
-            // Final deduplication just in case
-            const unique = [];
-            const seen = new Set();
-            for (const p of newList) {
-              if (!seen.has(p.id)) {
-                unique.push(p);
-                seen.add(p.id);
-              }
-            }
-            return unique;
-          });
-        });
-        socketRef.current.on('game-starting', (data) => {
-          setCurrentText(data.text);
-          setIsActive(true);
-          setLoading(false);
-          resetGameStats();
-        });
-        socketRef.current.on('error', (msg) => alert(msg));
-
-        socketRef.current.on('player-progress', (data) => {
-          setPlayers(prev => {
-            const exists = prev.find(p => p.id === data.playerId);
-            if (exists) {
-              return prev.map(p => p.id === data.playerId ? { ...p, index: data.index, errors: data.errors } : p);
-            }
-            
-            const myId = (user?.id || 'guest-' + socketRef.current?.id);
-            if (data.playerId === myId) return prev;
-
-            return [...prev, { 
-              id: data.playerId, 
-              name: data.name || 'Opponent', 
-              avatar: data.avatar || '👤', 
-              index: data.index, 
-              errors: data.errors, 
-              isBot: false 
-            }];
-          });
-        });
-
-        socketRef.current.on('opponent-started', (data) => {
-          // If we are not in a game, maybe we should start one with the same text?
-          // For now, just log or handle if needed.
-        });
-
         const { data: { session } } = await supabase.auth.getSession();
         let currentUser = session?.user ?? null;
 
@@ -332,9 +267,13 @@ const App: React.FC = () => {
               setAiOpponentDifficulty(prefs.ai_opponent_difficulty);
               setCalibratedKeys(new Set(prefs.calibrated_keys));
               setKeyMappings(prefs.key_mappings);
+              if (prefs.sound_profile) setSoundProfile(prefs.sound_profile);
+              if (prefs.keyboard_layout) setKeyboardLayout(prefs.keyboard_layout);
+              if (prefs.speed_unit) setSpeedUnit(prefs.speed_unit);
             }
             fetchHistory(newUser.id);
-            setHasUsedSolo(null); 
+            setHasUsedSolo(null);
+            initializeUserCredits(newUser.id);
           } else {
             setProfile({ ...DEFAULT_PROFILE });
             setPomodoroSettings({ ...DEFAULT_POMODORO });
@@ -368,6 +307,77 @@ const App: React.FC = () => {
     initializeAuth();
   }, []);
 
+  // Realtime Room Subscription
+  useEffect(() => {
+    if (!roomId) return;
+
+    const fetchPlayers = async () => {
+      const { data } = await supabase.from('room_participants').select('*').eq('room_id', roomId);
+      if (data) {
+        setPlayers(data.map(p => ({
+          id: p.user_id,
+          name: p.username,
+          avatar: p.avatar,
+          index: p.progress || 0,
+          errors: p.errors || 0,
+          isBot: false,
+          // @ts-ignore
+          is_ready: p.is_ready
+        })));
+      }
+    };
+    fetchPlayers();
+
+    const channel = supabase.channel(`room:${roomId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_participants', filter: `room_id=eq.${roomId}` }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newPlayer = payload.new;
+          setPlayers(prev => {
+            if (prev.some(p => p.id === newPlayer.user_id)) return prev;
+            return [...prev, {
+              id: newPlayer.user_id,
+              name: newPlayer.username,
+              avatar: newPlayer.avatar,
+              index: newPlayer.progress || 0,
+              errors: newPlayer.errors || 0,
+              isBot: false,
+              // @ts-ignore
+              is_ready: newPlayer.is_ready
+            }];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const updated = payload.new;
+          setPlayers(prev => prev.map(p => p.id === updated.user_id ? {
+            ...p,
+            index: updated.progress,
+            errors: updated.errors,
+            // @ts-ignore
+            is_ready: updated.is_ready
+          } : p));
+        } else if (payload.eventType === 'DELETE') {
+          const deleted = payload.old;
+          setPlayers(prev => prev.filter(p => p.id !== deleted.user_id));
+          if (deleted.user_id === user?.id) {
+             setRoomId(null);
+             setIsActive(false);
+          }
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
+        const room = payload.new;
+        if (room.status === 'playing' && !isActive) {
+           setCurrentText(room.text);
+           setIsActive(true);
+           setLoading(false);
+           resetGameStats();
+           setTimeout(() => inputRef.current?.focus(), 100);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [roomId, isActive, user?.id]);
+
   useEffect(() => {
     if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER && !roomId) {
       // Fetch available rooms
@@ -385,6 +395,26 @@ const App: React.FC = () => {
       return () => { supabase.removeChannel(subscription); };
     }
   }, [gameMode, competitiveType, roomId]);
+
+  // Fetch room region
+  useEffect(() => {
+    if (!roomId) return;
+    supabase.from('rooms').select('region').eq('id', roomId).single().then(({ data }) => {
+      if (data) setRoomRegion(data.region as 'global' | 'local');
+    });
+  }, [roomId]);
+
+  // Auto-start for local wireless when all ready
+  useEffect(() => {
+    if (roomRegion === 'local' && roomId && players.length > 1 && !isActive && !loading && roomStatus === 'waiting') {
+      // @ts-ignore
+      const allReady = players.every(p => p.is_ready);
+      
+      if (allReady && hostId === user?.id) {
+        startGame();
+      }
+    }
+  }, [players, roomRegion, roomId, isActive, loading, roomStatus, hostId, user?.id]);
 
   const resetGameStats = useCallback(() => {
     setUserInput(""); setElapsedTime(0); 
@@ -537,6 +567,42 @@ const App: React.FC = () => {
       if (!roomId) return;
       setLoading(true);
       try {
+        // 1. Check credits of all participants
+        const { data: participants } = await supabase
+          .from('room_participants')
+          .select('user_id')
+          .eq('room_id', roomId);
+        
+        if (!participants || participants.length === 0) throw new Error("No participants found");
+
+        let payerId: string | null = null;
+        // Shuffle participants to pick random payer
+        const shuffled = [...participants].sort(() => Math.random() - 0.5);
+
+        for (const p of shuffled) {
+          const { data: creditData } = await supabase
+            .from('user_credits')
+            .select('credits')
+            .eq('user_id', p.user_id)
+            .single();
+          
+          if (creditData && creditData.credits > 0) {
+            payerId = p.user_id;
+            break;
+          }
+        }
+
+        if (!payerId) {
+          alert("No one in the lobby has enough credits to generate a mission!");
+          setLoading(false);
+          return;
+        }
+
+        // 2. Deduct credit
+        const { error: creditError } = await supabase.rpc('decrement_credits', { user_id_arg: payerId });
+        if (creditError) throw creditError;
+
+        // 3. Generate Text
         const text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
         const normalized = normalizeText(text.trim());
         
@@ -637,7 +703,7 @@ const App: React.FC = () => {
       if (wpm > currentPb) localStorage.setItem(pbKey, wpm.toString());
       const note = await getCoachReport(provider, githubToken, wpm, accuracy, errors, Object.keys(errorMap));
       const result: TypingResult = { id: Date.now().toString(), date: new Date().toISOString(), wpm, accuracy, time: duration, errors, difficulty, mode: gameMode, textLength: currentText.length, errorMap, coachNote: note };
-      await supabase.from('history').insert([{ ...result, user_id: user.id }]);
+      await saveHistory(user.id, result);
       setHistory(prev => [result, ...prev].slice(0, 50));
     } else if (gameMode === GameMode.SOLO) {
       try { await recordIpSoloUsage(); setHasUsedSolo(true); } catch (err) {}
@@ -662,7 +728,7 @@ const App: React.FC = () => {
   };
 
   const handleExport = () => {
-    const maxWpm = history.length > 0 ? Math.max(...history.map(h => h.wpm)) : 0;
+    const maxWpm = history.length > 0 ? Math.max(...history.map(h => speedUnit === 'cpm' ? h.wpm * 5 : h.wpm)) : 0;
     const avgAcc = history.length > 0 ? history.reduce((acc, curr) => acc + curr.accuracy, 0) / history.length : 100;
     // Fix: Renamed local totalKeys to allKeys to avoid shadowing the state variable and resolve potential type errors in arithmetic operations on line 396.
     const allKeys = history.reduce((acc, curr) => acc + (curr.textLength || 0), 0);
@@ -687,7 +753,11 @@ const App: React.FC = () => {
   const formattedTime = (time: number) => { const mins = Math.floor(time / 60); const secs = (time % 60).toFixed(1); return `${mins}:${secs.padStart(4, '0')}`; };
 
   const checkRestricted = (targetView: AppView) => {
-    if (!user && (targetView === AppView.PROFILE || targetView === AppView.SETTINGS)) { setShowRestrictedModal(true); return; }
+    const isGuest = !user || user.is_ip_persistent;
+    if (isGuest && (targetView === AppView.PROFILE || targetView === AppView.SETTINGS || targetView === AppView.HISTORY)) { 
+      setShowRestrictedModal(true); 
+      return; 
+    }
     setActiveSettingsTab(null);
     setCurrentView(targetView);
   };
@@ -759,7 +829,7 @@ const App: React.FC = () => {
   };
 
   const fetchHistory = async (uid: string) => {
-    const { data } = await supabase.from('history').select('*').eq('user_id', uid).order('date', { ascending: false });
+    const data = await fetchHistoryService(uid);
     if (data) setHistory(data);
   };
 
@@ -824,16 +894,16 @@ const App: React.FC = () => {
       <div className="max-w-4xl w-full space-y-6">
         <header className="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-[1.75rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden">
-              <Logo className="w-8 h-8" />
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative group">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Logo className="w-8 h-8 relative z-10" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tighter leading-none mb-1">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-200">Zippy</span>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Type</span>
+              <h1 className="text-2xl font-black tracking-tighter leading-none mb-1 flex flex-col">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-white">ZIPPYTYPE</span>
               </h1>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em]">USER:</span>
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em]">PILOT:</span>
                 <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">{profile.username}</span>
               </div>
             </div>
@@ -844,11 +914,15 @@ const App: React.FC = () => {
               <button onClick={() => { setActiveSettingsTab(null); setCurrentView(AppView.TUTORIALS); }} className={`p-3 rounded-xl transition-all ${currentView === AppView.TUTORIALS ? `bg-amber-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Tactical Academy"><BookOpen size={20} /></button>
               <button onClick={() => checkRestricted(AppView.PROFILE)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.PROFILE ? `bg-emerald-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Profile">
                 <User size={20} />
-                {!user && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
+                {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
+              </button>
+              <button onClick={() => checkRestricted(AppView.HISTORY)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.HISTORY ? `bg-rose-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="History">
+                <Activity size={20} />
+                {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
               <button onClick={() => checkRestricted(AppView.SETTINGS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.SETTINGS ? `bg-purple-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Settings">
                 <SettingsIcon size={20} />
-                {!user && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
+                {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
             </div>
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-white transition-all shadow-md">{soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
@@ -865,6 +939,14 @@ const App: React.FC = () => {
                 <div className="space-y-3"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Accent Color</label><div className="flex gap-4">{Object.keys(RGB_MAP).map(c => (<button key={c} onClick={() => setProfile({...profile, accentColor: c as any})} className={`w-10 h-10 rounded-xl border-2 transition-all ${profile.accentColor === c ? 'border-white scale-110 shadow-xl shadow-white/10' : 'border-transparent opacity-40 hover:opacity-100'} bg-${c}-500`} />))}</div></div>
               </div>
               <div className="space-y-5"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Avatar</label><div className="grid grid-cols-5 gap-4">{AVATARS.map(v => (<button key={v} onClick={() => setProfile({...profile, avatar: v})} className={`text-2xl p-4 rounded-xl border-2 transition-all hover:scale-110 ${profile.avatar === v ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/10' : 'border-white/5 bg-black/50 opacity-30 hover:opacity-100'}`}>{v}</button>))}</div></div>
+            </div>
+            
+            <div className="space-y-4 pt-6 border-t border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl"><Activity size={22} /></div>
+                <h2 className="text-base font-black text-white uppercase tracking-tighter">Performance History</h2>
+              </div>
+              <HistoryChart history={history} speedUnit={speedUnit} />
             </div>
           </div>
         ) : currentView === AppView.SETTINGS ? (
@@ -1079,6 +1161,8 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+        ) : currentView === AppView.HISTORY ? (
+          <HistoryView history={history} speedUnit={speedUnit} problemKeys={problemKeys} />
         ) : currentView === AppView.TUTORIALS ? (
           <Tutorials />
         ) : currentView === AppView.PRIVACY ? (
@@ -1157,158 +1241,19 @@ const App: React.FC = () => {
                     </div>
 
                     {competitiveType === CompetitiveType.MULTIPLAYER && (
-                      <div className="w-full space-y-4">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-white/5 justify-center">
-                          <div className={`w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]`} />
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                            Global Arena Active
-                          </span>
-                        </div>
-
-                        {!roomId ? (
-                          <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <button 
-                                onClick={async () => {
-                                  if (!user) { setShowAuth(true); return; }
-                                  const { data, error } = await supabase.from('rooms').insert({ host_id: user.id, status: 'waiting' }).select().single();
-                                  if (data) {
-                                    setRoomId(data.id);
-                                    setHostId(user.id);
-                                    await supabase.from('room_participants').insert({ room_id: data.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
-                                  }
-                                }}
-                                className="p-6 glass border border-white/10 rounded-3xl hover:border-rose-500/30 transition-all group"
-                              >
-                                <div className="flex flex-col items-center gap-2">
-                                  <Rocket className="text-rose-400 group-hover:scale-110 transition-transform" size={24} />
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-white">Create Room</span>
-                                </div>
-                              </button>
-                              <div className="p-6 glass border border-white/10 rounded-3xl flex flex-col gap-3">
-                                <input 
-                                  value={joinRoomId} 
-                                  onChange={e => setJoinRoomId(e.target.value)}
-                                  placeholder="ENTER ROOM CODE"
-                                  className="bg-black/50 border border-white/10 rounded-xl p-3 text-center text-white font-black tracking-widest text-xs focus:border-rose-500 outline-none transition-all"
-                                />
-                                <button 
-                                  onClick={async () => {
-                                    if (!user) { setShowAuth(true); return; }
-                                    if (!joinRoomId) return;
-                                    const { data: room } = await supabase.from('rooms').select('id, host_id').eq('id', joinRoomId).single();
-                                    if (room) {
-                                      setRoomId(room.id);
-                                      setHostId(room.host_id);
-                                      await supabase.from('room_participants').insert({ room_id: room.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
-                                    }
-                                  }}
-                                  className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all"
-                                >
-                                  Join Room
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Open Lobbies</h3>
-                              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-2">
-                                {availableRooms.length === 0 ? (
-                                  <div className="p-4 rounded-xl border border-white/5 bg-black/20 text-center text-[9px] text-slate-500 uppercase tracking-widest">No open rooms found</div>
-                                ) : (
-                                  availableRooms.map(room => (
-                                    <button
-                                      key={room.id}
-                                      onClick={async () => {
-                                        if (!user) { setShowAuth(true); return; }
-                                        setRoomId(room.id);
-                                        setHostId(room.host_id);
-                                        await supabase.from('room_participants').insert({ room_id: room.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
-                                      }}
-                                      className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-left"
-                                    >
-                                      <span className="text-[9px] font-black text-white uppercase tracking-widest">Room {room.id.slice(0, 8)}...</span>
-                                      <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wide bg-emerald-500/10 px-2 py-1 rounded-full">Join</span>
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="glass p-8 rounded-[2.5rem] border border-white/10 text-center space-y-8 w-full max-w-2xl mx-auto shadow-2xl relative overflow-hidden">
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none" />
-                            <div className="space-y-2 relative z-10">
-                              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Mission Control // Lobby</p>
-                              <div className="flex items-center justify-center gap-4">
-                                <h4 className="text-4xl md:text-6xl font-black text-white tracking-[0.2em] drop-shadow-glow">{roomId}</h4>
-                                <button 
-                                  onClick={() => { navigator.clipboard.writeText(roomId); playSound('click'); }}
-                                  className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
-                                  title="Copy Code"
-                                >
-                                  <Copy size={20} />
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              {players.map(p => (
-                                <div key={p.id} className="flex flex-col items-center gap-3 p-4 bg-black/20 rounded-2xl border border-white/5 relative group">
-                                  {p.id === hostId && (
-                                    <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[8px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow-lg">
-                                      Host
-                                    </div>
-                                  )}
-                                  <div className="text-4xl drop-shadow-lg transform group-hover:scale-110 transition-transform duration-300">{p.avatar}</div>
-                                  <span className={`text-[10px] font-black uppercase tracking-widest ${p.id === (user?.id || 'guest') ? 'text-indigo-400' : 'text-slate-400'}`}>
-                                    {p.name}
-                                  </span>
-                                </div>
-                              ))}
-                              {Array.from({ length: Math.max(0, 4 - players.length) }).map((_, i) => (
-                                <div key={`empty-${i}`} className="flex flex-col items-center justify-center gap-3 p-4 bg-black/10 rounded-2xl border border-white/5 border-dashed opacity-50">
-                                  <div className="w-10 h-10 rounded-full bg-white/5 animate-pulse" />
-                                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Waiting...</span>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="pt-4 flex flex-col items-center gap-4 relative z-10">
-                              {hostId === (user?.id || 'guest') ? (
-                                <button 
-                                  onClick={startGame}
-                                  className="group relative px-12 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-[0_0_30px_rgba(225,29,72,0.4)] hover:shadow-[0_0_50px_rgba(225,29,72,0.6)] hover:scale-105 active:scale-95"
-                                >
-                                  <span className="relative z-10 flex items-center gap-2">
-                                    <Play size={16} /> Execute Mission
-                                  </span>
-                                </button>
-                              ) : (
-                                <div className="flex items-center gap-3 px-6 py-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping" />
-                                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Waiting for Host to Start</span>
-                                </div>
-                              )}
-                              
-                              <button 
-                                onClick={async () => {
-                                  if (roomId && user) {
-                                    await supabase.from('room_participants').delete().eq('room_id', roomId).eq('user_id', user.id);
-                                    if (hostId === user.id) {
-                                      await supabase.from('rooms').delete().eq('id', roomId);
-                                    }
-                                  }
-                                  setRoomId(null);
-                                }}
-                                className="text-[9px] font-black text-slate-600 hover:text-rose-500 uppercase tracking-widest transition-colors mt-2"
-                              >
-                                Abort & Leave
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <MultiplayerLobby
+                        user={user}
+                        profile={profile}
+                        roomId={roomId}
+                        setRoomId={setRoomId}
+                        players={players}
+                        setPlayers={setPlayers}
+                        startGame={startGame}
+                        hostId={hostId}
+                        setHostId={setHostId}
+                        isReady={isReady}
+                        setIsReady={setIsReady}
+                      />
                     )}
                   </motion.div>
                 )}
@@ -1439,8 +1384,8 @@ const App: React.FC = () => {
           </div>
         )}
       </div>
-      <SpeedInsights />
-      <Analytics />
+      {/* <SpeedInsights />
+      <Analytics /> */}
       <footer className="w-full max-w-4xl py-6 flex justify-center">
         <a 
           href="/pandc"

@@ -210,3 +210,58 @@ export const getDailyText = async (generator: () => Promise<string>): Promise<st
     return generator(); // Fallback to fresh generation
   }
 };
+
+export const initializeUserCredits = async (userId: string) => {
+  try {
+    const { data } = await supabase.from('user_credits').select('credits').eq('user_id', userId).maybeSingle();
+    if (!data) {
+      await supabase.from('user_credits').insert({ user_id: userId, credits: 10 });
+    }
+  } catch (e) {
+    console.error('Failed to initialize credits', e);
+  }
+};
+
+export const saveHistory = async (userId: string, result: any) => {
+  try {
+    const { error } = await supabase.from('history').insert({
+      user_id: userId,
+      wpm: result.wpm,
+      accuracy: result.accuracy,
+      time: result.time,
+      errors: result.errors,
+      difficulty: result.difficulty,
+      mode: result.mode,
+      text_length: result.textLength
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('Failed to save history', e);
+  }
+};
+
+export const fetchHistory = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data.map((item: any) => ({
+      id: item.id,
+      date: item.created_at,
+      wpm: item.wpm,
+      accuracy: item.accuracy,
+      time: item.time,
+      errors: item.errors,
+      difficulty: item.difficulty,
+      mode: item.mode,
+      textLength: item.text_length
+    }));
+  } catch (e) {
+    console.error('Failed to fetch history', e);
+    return [];
+  }
+};

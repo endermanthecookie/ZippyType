@@ -13,7 +13,7 @@ import { TypingResult } from '../types';
 
 interface HistoryChartProps {
   history: TypingResult[];
-  speedUnit: 'wpm' | 'cpm';
+  speedUnit: string;
 }
 
 const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
@@ -25,15 +25,15 @@ const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
 
   if (history.length === 0) {
     return (
-      <div className="h-64 flex items-center justify-center text-slate-500 italic border border-slate-800 rounded-xl bg-slate-900/20">
-        Complete a race to see your performance graph
+      <div className="h-64 flex items-center justify-center text-slate-500 italic border border-white/5 rounded-xl bg-black/20">
+        <p className="text-xs font-black uppercase tracking-widest">Complete a race to see analytics</p>
       </div>
     );
   }
 
   return (
-    <div className="h-64 w-full min-h-[200px] bg-slate-900/20 rounded-xl border border-slate-800/50 p-2 overflow-hidden flex flex-col justify-center">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180}>
+    <div className="h-64 w-full min-h-[200px] bg-black/20 rounded-xl border border-white/5 p-4 relative overflow-hidden">
+      <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="colorWpm" x1="0" y1="0" x2="0" y2="1">
@@ -41,7 +41,7 @@ const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
               <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
           <XAxis 
             dataKey="name" 
             stroke="#64748b" 
@@ -57,8 +57,9 @@ const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
             tickFormatter={(val) => `${val}`}
           />
           <Tooltip 
-            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '12px' }}
+            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px', textTransform: 'uppercase', fontWeight: '900', letterSpacing: '0.1em' }}
             itemStyle={{ color: '#f8fafc' }}
+            cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
           />
           <Area 
             type="monotone" 
@@ -68,7 +69,7 @@ const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
             fillOpacity={1} 
             fill="url(#colorWpm)" 
             isAnimationActive={true}
-            animationDuration={1000}
+            animationDuration={1500}
           />
         </AreaChart>
       </ResponsiveContainer>

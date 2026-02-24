@@ -47,36 +47,48 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
     }
 
     try {
-      let authResponse;
-      if (isLogin) {
-        authResponse = await supabase.auth.signInWithPassword({ email, password });
-      } else {
-        authResponse = await supabase.auth.signUp({ email, password });
-      }
+      // Timeout wrapper
+      const timeout = new Promise<{ data: { user: any } | null, error: any }>((_, reject) => 
+        setTimeout(() => reject(new Error("Request timed out. Please check your connection.")), 15000)
+      );
+
+      const authPromise = isLogin 
+        ? supabase.auth.signInWithPassword({ email, password })
+        : supabase.auth.signUp({ email, password });
+
+      const authResponse = await Promise.race([authPromise, timeout]);
       
+      // @ts-ignore
       if (authResponse.error) throw authResponse.error;
 
-      if (stayLoggedIn && authResponse.data.user) {
+      // @ts-ignore
+      if (stayLoggedIn && authResponse.data?.user) {
+        // @ts-ignore
         await linkUserToIp(authResponse.data.user.id);
       }
       
       onClose();
     } catch (err: any) {
-      setError(err.message === 'Invalid API key' ? 'Auth service error' : err.message);
+      console.error("Auth error:", err);
+      let msg = err.message || "An unexpected error occurred";
+      if (msg === 'Invalid login credentials') msg = 'Incorrect email or password.';
+      if (msg === 'User already registered') msg = 'This email is already registered.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="bg-slate-900 border border-slate-800/50 w-full max-w-sm rounded-[2rem] p-10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] relative ring-1 ring-white/5">
-        <button 
-          onClick={onClose}
-          className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-all hover:rotate-90"
-        >
-          <X size={20} />
-        </button>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800/50 w-full max-w-sm rounded-[2rem] p-10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] relative ring-1 ring-white/5">
+          <button 
+            onClick={onClose}
+            className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-all hover:rotate-90"
+          >
+            <X size={20} />
+          </button>
 
         <div className="text-center mb-10">
           <div className="inline-flex p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl mb-6 shadow-inner ring-1 ring-indigo-500/20">
@@ -256,6 +268,7 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
             </a>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
