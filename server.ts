@@ -70,6 +70,34 @@ async function startServer() {
     }
   });
 
+  // Icon Generation Endpoint (Favicon)
+  app.get('/api/icon.png', async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY not found" });
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = "A minimalist, high-resolution square icon for a typing app. The icon is a sharp, fast-looking 'Z' shape in a vibrant indigo and pink gradient. The background is completely transparent. No text. High-tech, modern style.";
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { aspectRatio: "1:1" } },
+      });
+
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          const buffer = Buffer.from(part.inlineData.data, 'base64');
+          res.setHeader('Content-Type', 'image/png');
+          return res.send(buffer);
+        }
+      }
+      res.status(500).json({ error: "No image data found" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Stripe Subscription Endpoint
   app.post('/api/create-subscription-intent', async (req, res) => {
     try {

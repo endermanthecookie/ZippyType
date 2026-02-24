@@ -835,6 +835,18 @@ const App: React.FC = () => {
 
   return (
     <div className={`min-h-screen p-4 md:p-6 flex flex-col items-center transition-all duration-700`}>
+      <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none">
+        <video 
+          autoPlay 
+          loop 
+          muted 
+          playsInline 
+          className="w-full h-full object-cover opacity-15 grayscale brightness-[0.3]"
+        >
+          <source src="https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/assets/typingvid.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-slate-950/20" />
+      </div>
       {showAuth && <Auth onClose={() => setShowAuth(false)} />}
       {user && pomodoroSettings.enabled && <PomodoroTimer settings={pomodoroSettings} />}
       
