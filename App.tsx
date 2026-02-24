@@ -27,7 +27,6 @@ import HardwareSettings from './components/settings/HardwareSettings';
 import PomodoroSettingsView from './components/settings/PomodoroSettings';
 import { SpeedInsights } from "@vercel/speed-insights/react"
 import { Analytics } from "@vercel/analytics/react"
-import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'motion/react';
 import { StripeCheckout } from './components/StripeCheckout';
 import { Logo } from './components/Logo';
@@ -133,6 +132,7 @@ const App: React.FC = () => {
   const [aiOpponentDifficulty, setAiOpponentDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
   const [calibratedKeys, setCalibratedKeys] = useState<Set<string>>(new Set());
   const [keyMappings, setKeyMappings] = useState<Record<string, string>>({});
+  const [speedUnit, setSpeedUnit] = useState<'wpm' | 'cpm'>('wpm');
 
   // Neuro-Adaptive State (Problem Keys)
   const [problemKeys, setProblemKeys] = useState<string[]>(() => {
@@ -165,12 +165,14 @@ const App: React.FC = () => {
   const [isSlowed, setIsSlowed] = useState(false);
   const [streak, setStreak] = useState(0);
   const [players, setPlayers] = useState<PlayerState[]>([]);
-  const [socketConnected, setSocketConnected] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [hostId, setHostId] = useState<string | null>(null);
   const [joinRoomId, setJoinRoomId] = useState("");
   const [isShaking, setIsShaking] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [roomStatus, setRoomStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
+  const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const channelRef = useRef<any>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
@@ -367,8 +369,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER && socketRef.current && !roomId) {
-      // We wait for user to create or join a room
+    if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER && !roomId) {
+      // Fetch available rooms
+      const fetchRooms = async () => {
+        const { data } = await supabase.from('rooms').select('*').eq('status', 'waiting').order('created_at', { ascending: false });
+        if (data) setAvailableRooms(data);
+      };
+      fetchRooms();
+      
+      const subscription = supabase
+        .channel('public:rooms')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
+        .subscribe();
+        
+      return () => { supabase.removeChannel(subscription); };
     }
   }, [gameMode, competitiveType, roomId]);
 
@@ -385,7 +399,7 @@ const App: React.FC = () => {
     const pb = localStorage.getItem(`pb_${difficulty}_${gameMode}`);
     
     const myId = (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER) 
-      ? (user?.id || 'guest-' + socketRef.current?.id) 
+      ? (user?.id || 'guest') 
       : 'me';
 
     const initialPlayers: PlayerState[] = [{ id: myId, name: profile.username, index: 0, errors: 0, isBot: false, avatar: profile.avatar }];
@@ -406,7 +420,7 @@ const App: React.FC = () => {
   useEffect(() => {
     setPlayers(prev => prev.map(p => {
       const myId = (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER) 
-        ? (user?.id || 'guest-' + socketRef.current?.id) 
+        ? (user?.id || 'guest') 
         : 'me';
       if (p.id === myId || p.id === 'me') {
         return { ...p, id: myId, name: profile.username, avatar: profile.avatar };
@@ -418,8 +432,9 @@ const App: React.FC = () => {
   const currentWpmDisplay = useMemo(() => {
     if (elapsedTime <= 0) return 0;
     const typedLength = gameMode === GameMode.TIME_ATTACK ? correctKeys : userInput.length;
-    return Math.round((typedLength / 5) / (elapsedTime / 60));
-  }, [elapsedTime, userInput.length, correctKeys, gameMode]);
+    const wpm = (typedLength / 5) / (elapsedTime / 60);
+    return Math.round(speedUnit === 'cpm' ? wpm * 5 : wpm);
+  }, [elapsedTime, userInput.length, correctKeys, gameMode, speedUnit]);
 
   const currentAccuracyDisplay = totalKeys > 0 ? Math.round(((totalKeys - errors) / totalKeys) * 100) : 100;
   const isOverdrive = streak >= 10;
@@ -523,7 +538,13 @@ const App: React.FC = () => {
       setLoading(true);
       try {
         const text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
-        socketRef.current?.emit('start-game', { roomId, text: normalizeText(text.trim()) });
+        const normalized = normalizeText(text.trim());
+        
+        await supabase.from('rooms').update({ 
+          status: 'playing', 
+          text: normalized 
+        }).eq('id', roomId);
+        
       } catch (e) {
         console.error("Multiplayer start failed:", e);
         if (provider === AIProvider.GEMINI) setShowGeminiError(true);
@@ -561,18 +582,17 @@ const App: React.FC = () => {
       setUserInput(val);
       
       const myId = (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER) 
-        ? (user?.id || 'guest-' + socketRef.current?.id) 
+        ? (user?.id || 'guest') 
         : 'me';
 
       setPlayers(prev => prev.map(p => { if (p.id === myId) return { ...p, index: val.length }; return p; }));
       
-      if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER && socketRef.current && roomId) {
-        socketRef.current.emit('update-progress', {
-          roomId,
-          playerId: myId,
-          index: val.length,
+      if (gameMode === GameMode.COMPETITIVE && competitiveType === CompetitiveType.MULTIPLAYER && roomId) {
+        // Debounce updates or just fire-and-forget
+        supabase.from('room_participants').update({
+          progress: val.length,
           errors: errors
-        });
+        }).eq('room_id', roomId).eq('user_id', user?.id).then();
       }
 
       if (val.length === currentText.length) { 
@@ -808,7 +828,10 @@ const App: React.FC = () => {
               <Logo className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-base font-black text-white uppercase tracking-tighter leading-none mb-1">ZippyType</h1>
+              <h1 className="text-2xl font-black tracking-tighter leading-none mb-1">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-200">Zippy</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Type</span>
+              </h1>
               <div className="flex items-center gap-2">
                 <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em]">USER:</span>
                 <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">{profile.username}</span>
@@ -964,6 +987,8 @@ const App: React.FC = () => {
                     setAiOpponentCount={setAiOpponentCount}
                     aiOpponentDifficulty={aiOpponentDifficulty}
                     setAiOpponentDifficulty={setAiOpponentDifficulty}
+                    speedUnit={speedUnit}
+                    setSpeedUnit={setSpeedUnit}
                     saveStatus={saveStatus}
                   />
                 )}
@@ -1134,36 +1159,80 @@ const App: React.FC = () => {
                     {competitiveType === CompetitiveType.MULTIPLAYER && (
                       <div className="w-full space-y-4">
                         <div className="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-white/5 justify-center">
-                          <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500 animate-pulse'}`} />
+                          <div className={`w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]`} />
                           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                            {socketConnected ? 'Connected to Global Arena' : 'Connecting to Server...'}
+                            Global Arena Active
                           </span>
                         </div>
 
                         {!roomId ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button 
-                              onClick={() => socketRef.current?.emit('create-room', { player: { id: user?.id || 'guest-' + socketRef.current.id, name: profile.username, avatar: profile.avatar, index: 0, errors: 0, isBot: false } })}
-                              className="p-6 glass border border-white/10 rounded-3xl hover:border-rose-500/30 transition-all group"
-                            >
-                              <div className="flex flex-col items-center gap-2">
-                                <Rocket className="text-rose-400 group-hover:scale-110 transition-transform" size={24} />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-white">Create Room</span>
-                              </div>
-                            </button>
-                            <div className="p-6 glass border border-white/10 rounded-3xl flex flex-col gap-3">
-                              <input 
-                                value={joinRoomId} 
-                                onChange={e => setJoinRoomId(e.target.value.toUpperCase())}
-                                placeholder="ENTER ROOM CODE"
-                                className="bg-black/50 border border-white/10 rounded-xl p-3 text-center text-white font-black tracking-widest text-xs focus:border-rose-500 outline-none transition-all"
-                              />
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <button 
-                                onClick={() => socketRef.current?.emit('join-room', { roomId: joinRoomId, player: { id: user?.id || 'guest-' + socketRef.current.id, name: profile.username, avatar: profile.avatar, index: 0, errors: 0, isBot: false } })}
-                                className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all"
+                                onClick={async () => {
+                                  if (!user) { setShowAuth(true); return; }
+                                  const { data, error } = await supabase.from('rooms').insert({ host_id: user.id, status: 'waiting' }).select().single();
+                                  if (data) {
+                                    setRoomId(data.id);
+                                    setHostId(user.id);
+                                    await supabase.from('room_participants').insert({ room_id: data.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
+                                  }
+                                }}
+                                className="p-6 glass border border-white/10 rounded-3xl hover:border-rose-500/30 transition-all group"
                               >
-                                Join Room
+                                <div className="flex flex-col items-center gap-2">
+                                  <Rocket className="text-rose-400 group-hover:scale-110 transition-transform" size={24} />
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-white">Create Room</span>
+                                </div>
                               </button>
+                              <div className="p-6 glass border border-white/10 rounded-3xl flex flex-col gap-3">
+                                <input 
+                                  value={joinRoomId} 
+                                  onChange={e => setJoinRoomId(e.target.value)}
+                                  placeholder="ENTER ROOM CODE"
+                                  className="bg-black/50 border border-white/10 rounded-xl p-3 text-center text-white font-black tracking-widest text-xs focus:border-rose-500 outline-none transition-all"
+                                />
+                                <button 
+                                  onClick={async () => {
+                                    if (!user) { setShowAuth(true); return; }
+                                    if (!joinRoomId) return;
+                                    const { data: room } = await supabase.from('rooms').select('id, host_id').eq('id', joinRoomId).single();
+                                    if (room) {
+                                      setRoomId(room.id);
+                                      setHostId(room.host_id);
+                                      await supabase.from('room_participants').insert({ room_id: room.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
+                                    }
+                                  }}
+                                  className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all"
+                                >
+                                  Join Room
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Open Lobbies</h3>
+                              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-2">
+                                {availableRooms.length === 0 ? (
+                                  <div className="p-4 rounded-xl border border-white/5 bg-black/20 text-center text-[9px] text-slate-500 uppercase tracking-widest">No open rooms found</div>
+                                ) : (
+                                  availableRooms.map(room => (
+                                    <button
+                                      key={room.id}
+                                      onClick={async () => {
+                                        if (!user) { setShowAuth(true); return; }
+                                        setRoomId(room.id);
+                                        setHostId(room.host_id);
+                                        await supabase.from('room_participants').insert({ room_id: room.id, user_id: user.id, username: profile.username, avatar: profile.avatar });
+                                      }}
+                                      className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-left"
+                                    >
+                                      <span className="text-[9px] font-black text-white uppercase tracking-widest">Room {room.id.slice(0, 8)}...</span>
+                                      <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-wide bg-emerald-500/10 px-2 py-1 rounded-full">Join</span>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -1192,7 +1261,7 @@ const App: React.FC = () => {
                                     </div>
                                   )}
                                   <div className="text-4xl drop-shadow-lg transform group-hover:scale-110 transition-transform duration-300">{p.avatar}</div>
-                                  <span className={`text-[10px] font-black uppercase tracking-widest ${p.id === (user?.id || 'guest-' + socketRef.current?.id) ? 'text-indigo-400' : 'text-slate-400'}`}>
+                                  <span className={`text-[10px] font-black uppercase tracking-widest ${p.id === (user?.id || 'guest') ? 'text-indigo-400' : 'text-slate-400'}`}>
                                     {p.name}
                                   </span>
                                 </div>
@@ -1206,7 +1275,7 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="pt-4 flex flex-col items-center gap-4 relative z-10">
-                              {hostId === (user?.id || 'guest-' + socketRef.current?.id) ? (
+                              {hostId === (user?.id || 'guest') ? (
                                 <button 
                                   onClick={startGame}
                                   className="group relative px-12 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-[0_0_30px_rgba(225,29,72,0.4)] hover:shadow-[0_0_50px_rgba(225,29,72,0.6)] hover:scale-105 active:scale-95"
@@ -1223,7 +1292,15 @@ const App: React.FC = () => {
                               )}
                               
                               <button 
-                                onClick={() => { setRoomId(null); socketRef.current?.emit('leave-room', roomId); }}
+                                onClick={async () => {
+                                  if (roomId && user) {
+                                    await supabase.from('room_participants').delete().eq('room_id', roomId).eq('user_id', user.id);
+                                    if (hostId === user.id) {
+                                      await supabase.from('rooms').delete().eq('id', roomId);
+                                    }
+                                  }
+                                  setRoomId(null);
+                                }}
                                 className="text-[9px] font-black text-slate-600 hover:text-rose-500 uppercase tracking-widest transition-colors mt-2"
                               >
                                 Abort & Leave
@@ -1303,7 +1380,8 @@ const App: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                <StatsCard label="Speed" value={`${currentWpmDisplay} WPM`} icon={<Zap />} color={profile.accentColor} />
+                <StatsCard label="Speed" value={`${currentWpmDisplay}`} icon={<Zap />} color={profile.accentColor} />
+                <div className="absolute top-2 right-2 text-[8px] font-black uppercase tracking-widest text-slate-600">{speedUnit.toUpperCase()}</div>
                 <StatsCard label="Precision" value={`${currentAccuracyDisplay}%`} icon={<Target />} color="emerald" />
                 <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col justify-center shadow-md"><p className="text-slate-500 text-[8px] font-black uppercase tracking-[0.3em] mb-1 leading-none">Adaptive Mode</p><div className="flex gap-2 min-h-[32px] items-center">{problemKeys.slice(0, 3).map(k => (<span key={k} className="px-2 py-1 bg-rose-500/20 text-rose-400 rounded text-[9px] font-black uppercase border border-rose-500/20">{k}</span>))}{problemKeys.length === 0 && <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Normal</span>}</div></div>
               </div>

@@ -13,12 +13,13 @@ import { TypingResult } from '../types';
 
 interface HistoryChartProps {
   history: TypingResult[];
+  speedUnit: 'wpm' | 'cpm';
 }
 
-const HistoryChart: React.FC<HistoryChartProps> = ({ history }) => {
+const HistoryChart: React.FC<HistoryChartProps> = ({ history, speedUnit }) => {
   const data = [...history].reverse().map((item, idx) => ({
     name: idx + 1,
-    wpm: item.wpm,
+    wpm: speedUnit === 'cpm' ? item.wpm * 5 : item.wpm,
     accuracy: item.accuracy
   }));
 

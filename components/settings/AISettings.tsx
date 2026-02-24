@@ -14,6 +14,8 @@ interface AISettingsProps {
   setAiOpponentCount: (c: number) => void;
   aiOpponentDifficulty: Difficulty;
   setAiOpponentDifficulty: (d: Difficulty) => void;
+  speedUnit: 'wpm' | 'cpm';
+  setSpeedUnit: (u: 'wpm' | 'cpm') => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
 }
 
@@ -28,6 +30,8 @@ const AISettings: React.FC<AISettingsProps> = ({
   setAiOpponentCount,
   aiOpponentDifficulty,
   setAiOpponentDifficulty,
+  speedUnit,
+  setSpeedUnit,
   saveStatus
 }) => {
   return (
@@ -104,6 +108,24 @@ const AISettings: React.FC<AISettingsProps> = ({
         </div>
 
         <div className="space-y-8">
+          <div className="space-y-3">
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Speed Unit</label>
+            <div className="flex bg-black/50 p-1.5 rounded-xl border border-white/5 shadow-inner">
+              <button 
+                onClick={() => setSpeedUnit('wpm')} 
+                className={`flex-1 py-3 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${speedUnit === 'wpm' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+              >
+                WPM
+              </button>
+              <button 
+                onClick={() => setSpeedUnit('cpm')} 
+                className={`flex-1 py-3 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${speedUnit === 'cpm' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+              >
+                CPM
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-3">
             <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">AI Competitors (1-5)</label>
             <div className="flex items-center px-1">

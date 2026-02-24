@@ -41,15 +41,13 @@ const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
           
           <h3 className="text-md font-bold text-white uppercase tracking-wider">2.1 Account Information</h3>
           <p className="text-sm">
-            When you sign in using Google OAuth, we request only the following basic profile scopes from Google:
+            When you sign in using Google OAuth, we request only the following basic profile scope from Google:
           </p>
           <ul className="list-disc pl-5 text-sm space-y-1">
-            <li>Your name</li>
             <li>Your email address</li>
-            <li>Your Google profile picture (avatar)</li>
           </ul>
           <p className="text-sm">
-            We do not request access to any other Google services such as Google Drive, Gmail, or Calendar.
+            We do not request access to any other Google services such as Google Drive, Gmail, or Calendar. We do not store your name or profile picture.
           </p>
 
           <h3 className="text-md font-bold text-white uppercase tracking-wider">2.2 Subscription & Payment Data</h3>

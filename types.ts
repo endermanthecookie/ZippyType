@@ -78,6 +78,7 @@ export interface UserPreferences {
   key_mappings: Record<string, string>;
   sound_profile?: SoundProfile;
   keyboard_layout?: KeyboardLayout;
+  speed_unit?: 'wpm' | 'cpm';
 }
 
 export interface PowerUp {
