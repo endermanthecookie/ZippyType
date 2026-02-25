@@ -29,7 +29,6 @@ import PomodoroSettingsView from './components/settings/PomodoroSettings';
 // import { Analytics } from "@vercel/analytics/react"
 import { motion, AnimatePresence } from 'motion/react';
 import { StripeCheckout } from './components/StripeCheckout';
-import { Logo } from './components/Logo';
 import HistoryView from './components/HistoryView';
 import MultiplayerLobby from './components/MultiplayerLobby';
 import confetti from 'canvas-confetti';
@@ -1162,18 +1161,23 @@ const App: React.FC = () => {
         )}
         <header className="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-[1.75rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative group text-white">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Logo className="w-8 h-8 relative z-10" />
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <img 
+                src="https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/assets/logos.png" 
+                alt="ZippyType" 
+                className="relative w-12 h-12 md:w-14 md:h-14 object-cover rounded-2xl border border-white/10 shadow-2xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-300 to-indigo-500">ZIPPYTYPE</span>
+              <h1 className="text-3xl md:text-4xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-purple-500 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">ZIPPYTYPE</span>
               </h1>
               <div className="flex items-center gap-2">
-                <div className="h-[1px] w-4 bg-indigo-500/30"></div>
+                <div className="h-[1px] w-4 bg-emerald-500/30"></div>
                 <span className="text-[8px] font-black uppercase text-slate-500 tracking-[0.3em]">PILOT:</span>
-                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-indigo-400/80">{profile.username}</span>
+                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-emerald-400/80">{profile.username}</span>
               </div>
             </div>
           </div>

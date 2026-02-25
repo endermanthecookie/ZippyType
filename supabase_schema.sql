@@ -74,7 +74,7 @@ begin
   set credits = credits - 1
   where user_id = user_id_arg and credits > 0;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 -- Enable Realtime
 -- We use a do block to avoid errors if table is already in publication
