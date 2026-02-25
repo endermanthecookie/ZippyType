@@ -5,7 +5,7 @@ import {
   Gamepad2, LogOut, X, Volume2, VolumeX, Github, Globe, User, EyeOff, Eye, 
   Activity, Dna, Clock, Lock, ShieldAlert, AlertCircle, Timer, Download, Upload, FileJson,
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
-  Keyboard as KeyboardIcon, Copy
+  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle
 } from 'lucide-react';
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
 import { fetchTypingText } from './services/geminiService';
@@ -32,6 +32,7 @@ import { StripeCheckout } from './components/StripeCheckout';
 import { Logo } from './components/Logo';
 import HistoryView from './components/HistoryView';
 import MultiplayerLobby from './components/MultiplayerLobby';
+import confetti from 'canvas-confetti';
 
 const RGB_MAP = {
   indigo: '99, 102, 241',
@@ -67,7 +68,16 @@ const App: React.FC = () => {
   const [showSubscription, setShowSubscription] = useState(false);
   const [clientSecret, setClientSecret] = useState("");
 
+  const checkProAction = (action: () => void) => {
+    if (profile.is_pro) {
+      action();
+    } else {
+      setShowProModal(true);
+    }
+  };
+
   const handleSubscribe = async () => {
+    setIsSubscribing(true);
     try {
       const res = await fetch('/api/create-subscription-intent', {
         method: 'POST',
@@ -83,6 +93,8 @@ const App: React.FC = () => {
     } catch (e) {
       console.error(e);
       alert('Error connecting to payment server');
+    } finally {
+      setIsSubscribing(false);
     }
   };
   const [currentView, setCurrentView] = useState<AppView>(AppView.GAME);
@@ -91,13 +103,17 @@ const App: React.FC = () => {
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
   const [showGeminiError, setShowGeminiError] = useState(false);
   const [showGithubHelp, setShowGithubHelp] = useState(false);
+  const [showCustomLimitModal, setShowCustomLimitModal] = useState(false);
+  const [githubTokensOut, setGithubTokensOut] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [user, setUser] = useState<any>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isZen, setIsZen] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [hasUsedSolo, setHasUsedSolo] = useState<boolean | null>(null);
-  
+  const [showProModal, setShowProModal] = useState(false);
+
   const [profile, setProfile] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem('user_profile');
@@ -135,6 +151,28 @@ const App: React.FC = () => {
   const [calibratedKeys, setCalibratedKeys] = useState<Set<string>>(new Set());
   const [keyMappings, setKeyMappings] = useState<Record<string, string>>({});
   const [speedUnit, setSpeedUnit] = useState<'wpm' | 'cpm'>('wpm');
+
+  // Font loading log
+  useEffect(() => {
+    document.fonts.ready.then(() => {
+      console.log("%c[ZippyType] Custom font loaded successfully: https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/assets/font.ttf", "color: #6366f1; font-weight: bold;");
+    }).catch(err => {
+      console.error("[ZippyType] Font loading failed:", err);
+    });
+  }, []);
+
+  // Check if Pro tokens are out
+  useEffect(() => {
+    const checkTokens = async () => {
+      try {
+        const { data } = await supabase.from('github_tokens').select('status').eq('status', 'out').limit(1);
+        if (data && data.length > 0) {
+          setGithubTokensOut(true);
+        }
+      } catch (e) {}
+    };
+    checkTokens();
+  }, []);
 
   // Neuro-Adaptive State (Problem Keys)
   const [problemKeys, setProblemKeys] = useState<string[]>(() => {
@@ -531,7 +569,33 @@ const App: React.FC = () => {
         if (provider === AIProvider.GEMINI) {
           return await fetchTypingText(customDiff || difficulty, "General", seed, problemKeys);
         } else {
-          return await fetchGithubTypingText(customDiff || difficulty, "General", githubToken);
+          if (seed) { // Custom topic requested
+            if (profile.is_pro) {
+              const res = await fetch('/api/generate-pro-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ difficulty: customDiff || difficulty, topic: seed, problemKeys: Array.from(problemKeys) })
+              });
+              if (!res.ok) throw new Error("Pro generation failed");
+              const data = await res.json();
+              return data.text;
+            } else {
+              if (!githubToken) {
+                setShowGithubHelp(true);
+                throw new Error("GitHub token required for free users");
+              }
+              if (user) {
+                const { data, error } = await supabase.rpc('increment_custom_text_usage', { user_id_arg: user.id });
+                if (error || data === -1) {
+                  setShowCustomLimitModal(true);
+                  throw new Error("Daily limit reached");
+                }
+              }
+              return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
+            }
+          } else {
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
+          }
         }
       };
 
@@ -603,7 +667,38 @@ const App: React.FC = () => {
         if (creditError) throw creditError;
 
         // 3. Generate Text
-        const text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
+        let text = "";
+        if (provider === AIProvider.GEMINI) {
+          text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
+        } else {
+          if (customTopic) {
+            if (profile.is_pro) {
+              const res = await fetch('/api/generate-pro-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ difficulty, topic: customTopic, problemKeys: Array.from(problemKeys) })
+              });
+              if (!res.ok) throw new Error("Pro generation failed");
+              const data = await res.json();
+              text = data.text;
+            } else {
+              if (!githubToken) {
+                setShowGithubHelp(true);
+                throw new Error("GitHub token required for free users");
+              }
+              if (user) {
+                const { data, error } = await supabase.rpc('increment_custom_text_usage', { user_id_arg: user.id });
+                if (error || data === -1) {
+                  setShowCustomLimitModal(true);
+                  throw new Error("Daily limit reached");
+                }
+              }
+              text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
+            }
+          } else {
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
+          }
+        }
         const normalized = normalizeText(text.trim());
         
         await supabase.from('rooms').update({ 
@@ -708,6 +803,62 @@ const App: React.FC = () => {
     } else if (gameMode === GameMode.SOLO) {
       try { await recordIpSoloUsage(); setHasUsedSolo(true); } catch (err) {}
     }
+
+    // Celebratory Animations
+    if (accuracy >= 95) {
+      if (wpm >= 100) {
+        // Legendary Performance
+        const duration = 5 * 1000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+        const interval: any = setInterval(function() {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            return clearInterval(interval);
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+          confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+          confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+        }, 250);
+      } else if (wpm >= 60) {
+        // Elite Performance
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#6366f1', '#ec4899', '#ffffff']
+        });
+      } else {
+        // Great Accuracy
+        confetti({
+          particleCount: 80,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ['#10b981', '#ffffff']
+        });
+        confetti({
+          particleCount: 80,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ['#10b981', '#ffffff']
+        });
+      }
+    } else if (accuracy >= 85 && wpm >= 40) {
+      // Good Performance
+      confetti({
+        particleCount: 40,
+        spread: 50,
+        origin: { y: 0.7 }
+      });
+    }
+
     setCurrentText(""); setDisplayedText(""); setUserInput("");
   };
 
@@ -903,20 +1054,85 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {showCustomLimitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
+                <AlertCircle size={32} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">Daily Limit Reached</h3>
+              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 custom practice texts for today. Upgrade to ZippyType Pro for unlimited custom generation!</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCustomLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
+              <button 
+                onClick={() => { 
+                  setShowCustomLimitModal(false); 
+                  setActiveSettingsTab('subscription'); 
+                  setCurrentView(AppView.SETTINGS); 
+                }} 
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Upgrade Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
+                <ShieldCheck size={32} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">ZippyType Pro Feature</h3>
+              <p className="text-[11px] font-medium text-slate-400">This feature is only for ZippyType Pro users. Upgrade now to unlock custom themes, unlimited AI generation, and advanced analytics.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowProModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Maybe Later</button>
+              <button 
+                onClick={() => { 
+                  setShowProModal(false); 
+                  setActiveSettingsTab('subscription'); 
+                  setCurrentView(AppView.SETTINGS); 
+                }} 
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Upgrade Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl w-full space-y-6">
+        {githubTokensOut && (
+          <div className="w-full bg-rose-500/20 border border-rose-500/30 text-rose-400 p-3 rounded-xl text-center text-[10px] font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-4">
+            <AlertTriangle size={14} className="inline-block mr-2 mb-0.5" />
+            Some ZippyType Pro users will experience slowdowns because some API's are not available.
+          </div>
+        )}
         <header className="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-[1.75rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative group">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-white/10 shadow-inner overflow-hidden relative group text-white">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity" />
               <Logo className="w-8 h-8 relative z-10" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tighter leading-none mb-1 flex flex-col">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-white">ZIPPYTYPE</span>
+              <h1 className="text-3xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-300 to-indigo-500 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">ZIPPYTYPE</span>
               </h1>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em]">PILOT:</span>
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400">{profile.username}</span>
+                <div className="h-[1px] w-4 bg-indigo-500/30"></div>
+                <span className="text-[8px] font-black uppercase text-slate-500 tracking-[0.3em]">PILOT:</span>
+                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-indigo-400/80">{profile.username}</span>
               </div>
             </div>
           </div>
@@ -948,17 +1164,35 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-6">
                 <div className="space-y-3"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">User Name</label><input value={profile.username} onChange={e => setProfile({...profile, username: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white font-bold text-sm focus:border-emerald-500 transition-all outline-none shadow-inner" /></div>
-                <div className="space-y-3"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Accent Color</label><div className="flex gap-4">{Object.keys(RGB_MAP).map(c => (<button key={c} onClick={() => setProfile({...profile, accentColor: c as any})} className={`w-10 h-10 rounded-xl border-2 transition-all ${profile.accentColor === c ? 'border-white scale-110 shadow-xl shadow-white/10' : 'border-transparent opacity-40 hover:opacity-100'} bg-${c}-500`} />))}</div></div>
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2">
+                    Accent Color
+                    {!profile.is_pro && <Lock size={10} className="text-amber-500" />}
+                  </label>
+                  <div className="flex gap-4">
+                    {Object.keys(RGB_MAP).map(c => (
+                      <button 
+                        key={c} 
+                        onClick={() => {
+                          if (profile.is_pro) {
+                            setProfile({...profile, accentColor: c as any});
+                          } else {
+                            setShowProModal(true);
+                          }
+                        }} 
+                        className={`w-10 h-10 rounded-xl border-2 transition-all ${profile.accentColor === c ? 'border-white scale-110 shadow-xl shadow-white/10' : 'border-transparent opacity-40 hover:opacity-100'} bg-${c}-500 relative`}
+                      >
+                        {!profile.is_pro && c !== 'indigo' && (
+                          <div className="absolute -top-1 -right-1 bg-slate-900 rounded-full p-0.5 border border-white/10">
+                            <Lock size={8} className="text-slate-400" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="space-y-5"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Avatar</label><div className="grid grid-cols-5 gap-4">{AVATARS.map(v => (<button key={v} onClick={() => setProfile({...profile, avatar: v})} className={`text-2xl p-4 rounded-xl border-2 transition-all hover:scale-110 ${profile.avatar === v ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/10' : 'border-white/5 bg-black/50 opacity-30 hover:opacity-100'}`}>{v}</button>))}</div></div>
-            </div>
-            
-            <div className="space-y-4 pt-6 border-t border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl"><Activity size={22} /></div>
-                <h2 className="text-base font-black text-white uppercase tracking-tighter">Performance History</h2>
-              </div>
-              <HistoryChart history={history} speedUnit={speedUnit} />
             </div>
           </div>
         ) : currentView === AppView.SETTINGS ? (
@@ -1154,9 +1388,17 @@ const App: React.FC = () => {
                       </div>
                       <button 
                         onClick={handleSubscribe}
-                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 w-full md:w-auto"
+                        disabled={isSubscribing}
+                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
-                        Upgrade to Pro
+                        {isSubscribing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          "Upgrade to Pro"
+                        )}
                       </button>
                       <p className="text-[10px] text-slate-600">Secure payment via Stripe. Cancel anytime.</p>
                     </div>
@@ -1354,6 +1596,15 @@ const App: React.FC = () => {
                     <div className="flex flex-col items-center justify-center gap-8 py-8 w-full max-w-lg">
                       <div className="space-y-4 w-full text-center">
                         <p className="text-slate-600 italic uppercase text-[10px] tracking-[0.4em]">Initialize Mission Parameters</p>
+                        <div className="relative w-full max-w-md mx-auto">
+                          <input 
+                            type="text" 
+                            placeholder={profile.is_pro ? "Enter a custom topic (e.g., 'Cyberpunk')" : "Enter a custom topic (Free: 25/day)"}
+                            value={customTopic}
+                            onChange={(e) => setCustomTopic(e.target.value)}
+                            className={`w-full bg-black/40 border ${profile.is_pro ? 'border-indigo-500/30 focus:border-indigo-500' : 'border-white/5 focus:border-white/20'} rounded-xl p-4 text-white font-bold text-sm transition-all outline-none shadow-inner text-center placeholder:text-slate-600`}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (

@@ -84,25 +84,6 @@ const Tutorials: React.FC = () => {
         ))}
       </div>
 
-      <div className="glass p-10 rounded-[2.5rem] border border-white/10 bg-indigo-500/5 space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-xl"><Sparkles size={24} /></div>
-          <div>
-            <h4 className="text-xs font-black text-white uppercase tracking-widest">Veo 3 Training Prompt</h4>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Generate your own immersive training video</p>
-          </div>
-        </div>
-        
-        <div className="bg-black/40 p-6 rounded-2xl border border-white/5 font-mono text-[11px] text-indigo-300 leading-relaxed select-all cursor-copy group relative">
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-[8px] uppercase tracking-widest text-slate-500">Click to copy</div>
-          "Cinematic, high-detail close-up of a professional typist's hands on a high-end mechanical keyboard with RGB lighting. The lighting is a moody indigo and teal. The camera moves in a slow, smooth orbit around the hands. The fingers move with extreme precision and speed, demonstrating perfect touch typing technique. The background is a blurred, futuristic data center with floating holographic code. 4K resolution, photorealistic, 60fps, professional lighting, shallow depth of field."
-        </div>
-
-        <p className="text-slate-400 text-xs italic leading-relaxed text-center">
-          "Copy this prompt into Veo 3 to generate a high-fidelity visual reference for your training sessions."
-        </p>
-      </div>
-
       <div className="glass p-8 rounded-[2rem] border border-white/10 bg-slate-900/40">
         <div className="flex items-center gap-4 mb-4">
           <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg"><Info size={20} /></div>

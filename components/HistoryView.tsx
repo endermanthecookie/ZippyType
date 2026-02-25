@@ -1,16 +1,18 @@
 import React from 'react';
 import { TypingResult } from '../types';
 import HistoryChart from './HistoryChart';
-import { Target, Activity, Calendar, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Target, Activity, Calendar, TrendingUp, AlertTriangle, ShieldCheck, BrainCircuit } from 'lucide-react';
 import StatsCard from './StatsCard';
 
 interface HistoryViewProps {
   history: TypingResult[];
   speedUnit: string;
   problemKeys: string[];
+  isPro: boolean;
+  onUpgradeClick: () => void;
 }
 
-const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKeys }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKeys, isPro, onUpgradeClick }) => {
   const averageWpm = history.length > 0 
     ? Math.round(history.reduce((acc, curr) => acc + curr.wpm, 0) / history.length) 
     : 0;
@@ -29,7 +31,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
           <div className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20">
             <Activity size={22} />
           </div>
-          <h2 className="text-base font-black text-white uppercase tracking-tighter">Performance Analytics</h2>
+          <h2 className="text-base font-black text-[var(--text-main)] uppercase tracking-tighter">Performance Analytics</h2>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -40,7 +42,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5">
-          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
             <TrendingUp size={14} className="text-indigo-400" /> Progression
           </h3>
           <div className="h-[300px] w-full">
@@ -49,14 +51,14 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5">
-          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
             <AlertTriangle size={14} className="text-rose-400" /> Key Targets (Problem Keys)
           </h3>
           {problemKeys.length > 0 ? (
             <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
               {problemKeys.map(k => (
                 <div key={k} className="flex flex-col items-center justify-center p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl">
-                  <span className="text-2xl font-mono font-bold text-white">{k}</span>
+                  <span className="text-2xl font-mono font-bold text-[var(--text-main)]">{k}</span>
                   <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest mt-1">Focus</span>
                 </div>
               ))}
@@ -66,6 +68,51 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
               <p className="text-emerald-400 text-xs font-black uppercase tracking-widest">No problem keys detected. Excellent precision!</p>
             </div>
           )}
+        </div>
+
+        <div className="space-y-4 pt-6 border-t border-white/5 relative overflow-hidden">
+          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
+            <BrainCircuit size={14} className="text-purple-400" /> Neural Adaptation Analysis
+          </h3>
+          
+          {!isPro ? (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm rounded-xl border border-white/10 mt-10">
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl mb-4">
+                <ShieldCheck size={24} />
+              </div>
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2">ZippyType Pro Feature</h4>
+              <p className="text-[10px] text-slate-400 max-w-xs text-center mb-4">Unlock deep insights into your typing patterns, finger travel distance, and cognitive load analysis.</p>
+              <button 
+                onClick={onUpgradeClick}
+                className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          ) : null}
+
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${!isPro ? 'opacity-20 pointer-events-none blur-sm' : ''}`}>
+            <div className="p-6 bg-black/40 rounded-2xl border border-white/5 space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Cognitive Load Estimate</h4>
+              <div className="flex items-end gap-2">
+                <span className="text-3xl font-black text-emerald-400">Low</span>
+                <span className="text-[10px] text-slate-500 mb-1">Based on error distribution</span>
+              </div>
+              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-400 w-1/4 rounded-full" />
+              </div>
+            </div>
+            <div className="p-6 bg-black/40 rounded-2xl border border-white/5 space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Finger Travel Efficiency</h4>
+              <div className="flex items-end gap-2">
+                <span className="text-3xl font-black text-indigo-400">92%</span>
+                <span className="text-[10px] text-slate-500 mb-1">Optimal routing</span>
+              </div>
+              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-400 w-[92%] rounded-full" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

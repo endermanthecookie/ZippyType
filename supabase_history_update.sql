@@ -1,4 +1,4 @@
--- Create History Table
+-- Create History Table if it doesn't exist
 create table if not exists public.history (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) not null,
@@ -11,6 +11,14 @@ create table if not exists public.history (
   text_length integer not null,
   created_at timestamp with time zone default now() not null
 );
+
+-- Add text_length column if it's missing (migration for existing tables)
+do $$ 
+begin 
+  if not exists (select 1 from information_schema.columns where table_name='history' and column_name='text_length') then
+    alter table public.history add column text_length integer not null default 0;
+  end if;
+end $$;
 
 -- RLS Policies for History
 alter table public.history enable row level security;

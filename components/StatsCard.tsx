@@ -27,7 +27,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ label, value, icon, color }) => {
           key={value}
           initial={{ y: 5, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="text-base font-black text-white leading-none font-mono tracking-tighter"
+          className="text-base font-black text-[var(--text-main)] leading-none font-mono tracking-tighter"
         >
           {value}
         </motion.p>
