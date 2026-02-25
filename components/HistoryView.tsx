@@ -72,7 +72,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
 
         <div className="space-y-4 pt-6 border-t border-white/5 relative overflow-hidden">
           <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
-            <BrainCircuit size={14} className="text-purple-400" /> Neural Adaptation Analysis
+            <BrainCircuit size={14} className="text-purple-400" /> Weak Keys Analysis
           </h3>
           
           {!isPro ? (

@@ -21,6 +21,36 @@
   --card-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
 }
 
+[data-theme="light"] {
+  --bg-deep: #f8fafc;
+  --bg-surface: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --card-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.05) 100%);
+}
+
+[data-theme="midnight"] {
+  --bg-deep: #000000;
+  --bg-surface: #050505;
+  --text-main: #f1f5f9;
+  --text-muted: #475569;
+  --glass-bg: rgba(5, 5, 5, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.03);
+  --card-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+[data-theme="cyberpunk"] {
+  --bg-deep: #0f0914;
+  --bg-surface: #1a1025;
+  --text-main: #fdf2f8;
+  --text-muted: #f472b6;
+  --glass-bg: rgba(26, 16, 37, 0.8);
+  --glass-border: rgba(236, 72, 153, 0.2);
+  --card-bg: linear-gradient(135deg, rgba(236, 72, 153, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%);
+}
+
 @theme {
   --font-sans: "ZippyFont", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;

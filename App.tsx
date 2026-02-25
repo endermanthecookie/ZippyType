@@ -103,6 +103,7 @@ const App: React.FC = () => {
   const [showRestrictedModal, setShowRestrictedModal] = useState(false);
   const [showGeminiError, setShowGeminiError] = useState(false);
   const [showGithubHelp, setShowGithubHelp] = useState(false);
+  const [showWelcomeProModal, setShowWelcomeProModal] = useState(false);
   const [showCustomLimitModal, setShowCustomLimitModal] = useState(false);
   const [githubTokensOut, setGithubTokensOut] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -151,6 +152,15 @@ const App: React.FC = () => {
   const [calibratedKeys, setCalibratedKeys] = useState<Set<string>>(new Set());
   const [keyMappings, setKeyMappings] = useState<Record<string, string>>({});
   const [speedUnit, setSpeedUnit] = useState<'wpm' | 'cpm'>('wpm');
+
+  // Apply theme
+  useEffect(() => {
+    if (profile.theme) {
+      document.documentElement.setAttribute('data-theme', profile.theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }, [profile.theme]);
 
   // Font loading log
   useEffect(() => {
@@ -1032,6 +1042,37 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {showWelcomeProModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-indigo-500/30 w-full max-w-md rounded-[2rem] p-10 shadow-[0_0_50px_rgba(99,102,241,0.2)] text-center space-y-8 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10" />
+            <div className="relative">
+              <div className="flex justify-center mb-6">
+                <div className="p-4 bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-2xl shadow-lg animate-bounce">
+                  <Sparkles size={40} />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h3 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 uppercase tracking-tighter">
+                  Welcome to Pro!
+                </h3>
+                <p className="text-sm font-medium text-slate-300 leading-relaxed">
+                  Your account has been successfully upgraded. You now have access to unlimited custom topics, advanced AI models, and exclusive features.
+                </p>
+              </div>
+              <div className="mt-8">
+                <button 
+                  onClick={() => setShowWelcomeProModal(false)} 
+                  className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-black rounded-xl transition-all uppercase tracking-widest text-[10px] shadow-inner"
+                >
+                  Let's Go!
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRestrictedModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="glass border border-white/10 w-full max-w-sm rounded-[1.5rem] p-8 shadow-2xl text-center space-y-6">
@@ -1126,8 +1167,8 @@ const App: React.FC = () => {
               <Logo className="w-8 h-8 relative z-10" />
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-300 to-indigo-500 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">ZIPPYTYPE</span>
+              <h1 className="text-4xl md:text-5xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-300 to-indigo-500">ZIPPYTYPE</span>
               </h1>
               <div className="flex items-center gap-2">
                 <div className="h-[1px] w-4 bg-indigo-500/30"></div>
@@ -1174,7 +1215,7 @@ const App: React.FC = () => {
                       <button 
                         key={c} 
                         onClick={() => {
-                          if (profile.is_pro) {
+                          if (profile.is_pro || c === 'indigo') {
                             setProfile({...profile, accentColor: c as any});
                           } else {
                             setShowProModal(true);
@@ -1185,6 +1226,43 @@ const App: React.FC = () => {
                         {!profile.is_pro && c !== 'indigo' && (
                           <div className="absolute -top-1 -right-1 bg-slate-900 rounded-full p-0.5 border border-white/10">
                             <Lock size={8} className="text-slate-400" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2">
+                    Theme
+                    {!profile.is_pro && <Lock size={10} className="text-amber-500" />}
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { id: '', name: 'Default Dark' },
+                      { id: 'light', name: 'Clean Light' },
+                      { id: 'midnight', name: 'Midnight OLED' },
+                      { id: 'cyberpunk', name: 'Cyberpunk' }
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          if (profile.is_pro || t.id === '') {
+                            setProfile({...profile, theme: t.id});
+                          } else {
+                            setShowProModal(true);
+                          }
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left relative ${
+                          (profile.theme || '') === t.id 
+                            ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/20' 
+                            : 'border-white/5 bg-black/20 hover:border-white/20'
+                        }`}
+                      >
+                        <span className="text-xs font-bold text-white">{t.name}</span>
+                        {!profile.is_pro && t.id !== '' && (
+                          <div className="absolute top-2 right-2">
+                            <Lock size={12} className="text-slate-500" />
                           </div>
                         )}
                       </button>
@@ -1437,7 +1515,7 @@ const App: React.FC = () => {
                     { mode: GameMode.SOLO, label: 'Solo Practice', desc: 'Standard flow, no pressure.', icon: <User /> },
                     { mode: GameMode.TIME_ATTACK, label: '60s Blitz', desc: 'Type against the clock.', icon: <Timer /> },
                     { mode: GameMode.COMPETITIVE, label: 'Competitive', desc: 'Battle bots or friends.', icon: <Trophy /> },
-                    { mode: GameMode.DAILY, label: 'Daily Mission', desc: 'Today\'s unique challenge.', icon: <Sparkles /> },
+                    { mode: GameMode.DAILY, label: 'Daily Race', desc: 'Today\'s unique challenge.', icon: <Sparkles /> },
                     { mode: GameMode.BEAT_THE_CLOCK, label: 'Beat Clock', desc: 'Correct words add time.', icon: <Clock /> },
                     { mode: GameMode.ACCURACY_CHALLENGE, label: 'Accuracy', desc: 'One mistake = Game Over.', icon: <Target /> },
                     { mode: GameMode.WPM_RACE, label: 'WPM Race', desc: 'Race a steady 60 WPM bot.', icon: <Zap /> }
@@ -1595,7 +1673,7 @@ const App: React.FC = () => {
                   ) : !isActive ? (
                     <div className="flex flex-col items-center justify-center gap-8 py-8 w-full max-w-lg">
                       <div className="space-y-4 w-full text-center">
-                        <p className="text-slate-600 italic uppercase text-[10px] tracking-[0.4em]">Initialize Mission Parameters</p>
+                        <p className="text-slate-600 italic uppercase text-[10px] tracking-[0.4em]">Race Setup</p>
                         <div className="relative w-full max-w-md mx-auto">
                           <input 
                             type="text" 
@@ -1631,7 +1709,9 @@ const App: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <input ref={inputRef} value={userInput} onChange={handleInputChange} disabled={!isActive || loading || isTypingOut} className="absolute inset-0 opacity-0 cursor-default" autoFocus />
+                {isActive && !loading && !isTypingOut && (
+                  <input ref={inputRef} value={userInput} onChange={handleInputChange} className="absolute inset-0 opacity-0 cursor-default" autoFocus />
+                )}
               </div>
 
               {showGuide && isActive && !loading && !isTypingOut && <div className="mb-10 animate-in slide-in-from-top-4 duration-500"><TypingGuide nextChar={currentText[userInput.length]} accentColor={profile.accentColor} /></div>}
@@ -1639,7 +1719,7 @@ const App: React.FC = () => {
               <div className="mt-4 flex flex-col items-center">
                 <button onClick={isActive ? () => { setIsActive(false); setCurrentText(""); } : startGame} className={`group relative px-12 py-5 rounded-[1.5rem] font-black uppercase tracking-[0.4em] text-[11px] transition-all shadow-3xl overflow-hidden hover:scale-105 active:scale-95 ${isActive ? 'bg-white/5 text-slate-500 border border-white/10' : `text-white bg-gradient-to-r ${ACCENT_COLORS[profile.accentColor as keyof typeof ACCENT_COLORS]} ring-4 ring-indigo-500/20 shadow-[0_10px_40px_-10px_rgba(var(--accent-primary),0.5)]`}`}>
                   <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-30 transition-opacity" />
-                  <div className="relative flex items-center gap-3">{isActive ? <RotateCcw size={20} /> : <Play size={20} />} {isActive ? 'Abort Race' : 'Execute Mission'}</div>
+                  <div className="relative flex items-center gap-3">{isActive ? <RotateCcw size={20} /> : <Play size={20} />} {isActive ? 'Abort Race' : 'Start Race'}</div>
                 </button>
               </div>
             </motion.main>
@@ -1669,7 +1749,7 @@ const App: React.FC = () => {
             const newProfile = { ...profile, is_pro: true };
             setProfile(newProfile);
             setShowSubscription(false); 
-            alert('Welcome to ZippyType Pro! Your account has been upgraded.');
+            setShowWelcomeProModal(true);
             if (user) {
               const prefs: UserPreferences = { 
                 ai_provider: provider, 

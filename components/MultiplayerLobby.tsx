@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseService';
 import { PlayerState, UserProfile } from '../types';
-import { Rocket, Copy, Play, Users, MapPin, Wifi } from 'lucide-react';
+import { Rocket, Copy, Play, Users, MapPin, Wifi, CheckCircle2 } from 'lucide-react';
 
 interface MultiplayerLobbyProps {
   user: any;
@@ -24,6 +24,15 @@ const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const [mode, setMode] = useState<'global' | 'local'>('global');
   const [nearbyRooms, setNearbyRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (roomId) {
+      navigator.clipboard.writeText(roomId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Fetch nearby rooms (simulated for now, or using simple region filter)
   useEffect(() => {
@@ -130,16 +139,21 @@ const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">
             {mode === 'local' ? 'Local Wireless Lobby' : 'Global Network Lobby'}
           </p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4 relative">
             <h4 className="text-4xl md:text-5xl font-black text-white tracking-[0.1em] drop-shadow-glow font-mono">
               {roomId.slice(0, 8)}...
             </h4>
             <button 
-              onClick={() => navigator.clipboard.writeText(roomId)}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white"
+              onClick={handleCopy}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors text-slate-400 hover:text-white relative"
             >
-              <Copy size={20} />
+              {copied ? <CheckCircle2 size={20} className="text-emerald-400" /> : <Copy size={20} />}
             </button>
+            {copied && (
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-2 whitespace-nowrap z-50">
+                Room code copied to clipboard!
+              </div>
+            )}
           </div>
         </div>
 
@@ -182,7 +196,7 @@ const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
                 className="group relative px-12 py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-[0_0_30px_rgba(225,29,72,0.4)] hover:shadow-[0_0_50px_rgba(225,29,72,0.6)] hover:scale-105 active:scale-95"
               >
                 <span className="relative z-10 flex items-center gap-2">
-                  <Play size={16} /> Execute Mission
+                  <Play size={16} /> Start Race
                 </span>
               </button>
             ) : (

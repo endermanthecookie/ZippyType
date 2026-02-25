@@ -59,6 +59,7 @@ export interface UserProfile {
   username: string;
   avatar: string;
   accentColor: string;
+  theme?: string;
   is_pro?: boolean;
 }
 

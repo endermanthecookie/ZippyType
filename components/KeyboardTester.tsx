@@ -217,7 +217,7 @@ const KeyboardTester: React.FC<KeyboardTesterProps> = ({
         {problemKeys.length > 0 && (
           <div className="flex items-center gap-4 p-4 bg-rose-500/5 rounded-2xl border border-rose-500/20 animate-in fade-in slide-in-from-right-4">
             <div className="flex flex-col">
-              <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Zap size={10} /> Neuro-Adaptive Targets</span>
+              <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Zap size={10} /> Adaptive Targets</span>
               <div className="flex gap-1.5">
                 {problemKeys.map(k => (
                   <span key={k} className="px-2 py-0.5 bg-rose-500/20 rounded text-rose-400 font-mono text-[10px] font-bold uppercase">{k}</span>
