@@ -18,6 +18,7 @@ import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, r
 import { saveZippyData, loadZippyData, ZippyStats } from './services/storageService';
 import StatsCard from './components/StatsCard';
 import HistoryChart from './components/HistoryChart';
+import SearchView from './components/SearchView';
 import KeyboardTester from './components/KeyboardTester';
 import TypingGuide from './components/TypingGuide';
 import PrivacyPolicy from './components/PrivacyPolicy';
@@ -139,7 +140,7 @@ const App: React.FC = () => {
       const res = await fetch('/api/create-gift-card-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user?.id, months: giftMonths })
+        body: JSON.stringify({ userId: user?.id, months: giftMonths, maxUses: giftUses })
       });
       const data = await res.json();
       if (data.clientSecret) {
@@ -172,6 +173,7 @@ const App: React.FC = () => {
   const [outTokensCount, setOutTokensCount] = useState(0);
   const [giftCardCode, setGiftCardCode] = useState("");
   const [giftMonths, setGiftMonths] = useState(1);
+  const [giftUses, setGiftUses] = useState(1);
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -1408,6 +1410,9 @@ const App: React.FC = () => {
                 <Activity size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
+              <button onClick={() => setCurrentView(AppView.SEARCH)} className={`p-3 rounded-xl transition-all ${currentView === AppView.SEARCH ? `bg-cyan-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Search">
+                <Search size={20} />
+              </button>
               <button onClick={() => checkRestricted(AppView.SETTINGS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.SETTINGS ? `bg-purple-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Settings">
                 <SettingsIcon size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
@@ -1764,10 +1769,18 @@ const App: React.FC = () => {
                                 <button onClick={() => setGiftMonths(m => Math.min(12, m + 1))} className="p-1 hover:bg-white/10 rounded text-indigo-400">+</button>
                               </div>
                             </div>
+                            <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
+                              <span className="text-[10px] font-black text-white uppercase tracking-widest">Uses</span>
+                              <div className="flex items-center gap-3">
+                                <button onClick={() => setGiftUses(u => Math.max(1, u - 1))} className="p-1 hover:bg-white/10 rounded text-indigo-400">-</button>
+                                <span className="text-xs font-black text-white w-8 text-center">{giftUses}x</span>
+                                <button onClick={() => setGiftUses(u => Math.min(100, u + 1))} className="p-1 hover:bg-white/10 rounded text-indigo-400">+</button>
+                              </div>
+                            </div>
                             <div className="flex items-center justify-between px-1">
                               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Price</span>
                               <span className="text-sm font-black text-white">
-                                ${(giftMonths * 5 * Math.max(0.5, 1 - (giftMonths - 1) * 0.1)).toFixed(2)}
+                                ${(giftMonths * 5 * Math.max(0.5, 1 - (giftMonths - 1) * 0.1) * (1 + 0.75 * (giftUses - 1))).toFixed(2)}
                               </span>
                             </div>
                             <button 
@@ -1796,7 +1809,9 @@ const App: React.FC = () => {
             )}
           </div>
         ) : currentView === AppView.HISTORY ? (
-          <HistoryView history={history} speedUnit={speedUnit} isPro={profile.is_pro || false} onUpgradeClick={() => setShowUpgradeModal(true)} />
+          <HistoryView history={history} speedUnit={speedUnit} problemKeys={problemKeys} isPro={profile.is_pro || false} onUpgradeClick={() => setShowUpgradeModal(true)} />
+        ) : currentView === AppView.SEARCH ? (
+          <SearchView />
         ) : currentView === AppView.TUTORIALS ? (
           <Tutorials />
         ) : currentView === AppView.PRIVACY ? (

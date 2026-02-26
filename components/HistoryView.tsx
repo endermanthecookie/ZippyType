@@ -12,7 +12,7 @@ interface HistoryViewProps {
   onUpgradeClick: () => void;
 }
 
-const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKeys, isPro, onUpgradeClick }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKeys = [], isPro, onUpgradeClick }) => {
   const averageWpm = history.length > 0 
     ? Math.round(history.reduce((acc, curr) => acc + curr.wpm, 0) / history.length) 
     : 0;
