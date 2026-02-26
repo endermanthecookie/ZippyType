@@ -128,6 +128,22 @@ export const loadUserPreferences = async (userId: string): Promise<UserPreferenc
   }
 };
 
+export const checkProStatus = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('zippypro')
+      .select('is_active, months_remaining')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (error || !data) return false;
+    return data.is_active && data.months_remaining > 0;
+  } catch (e) {
+    console.error('Check pro status failed', e);
+    return false;
+  }
+};
+
 export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -178,6 +194,30 @@ export const recordIpSoloUsage = async () => {
     await supabase.from('anonymous_runs').upsert({ ip_address: ip });
   } catch (e) {
     console.error('Failed to record IP usage', e);
+  }
+};
+
+export const incrementUsage = async (userId: string | null, isPro: boolean, isCustomTopic: boolean): Promise<number> => {
+  try {
+    let ip = null;
+    if (!userId) {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      ip = data.ip;
+    }
+    
+    const { data, error } = await supabase.rpc('increment_usage', {
+      user_id_arg: userId,
+      ip_address_arg: ip,
+      is_pro_arg: isPro,
+      is_custom_topic_arg: isCustomTopic
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('Failed to increment usage', e);
+    return 1; // Default to success if check fails to not block user
   }
 };
 

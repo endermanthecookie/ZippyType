@@ -16,7 +16,9 @@ const __dirname = path.dirname(__filename);
 // Initialize Supabase
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Initialize Stripe with the provided test key
 const stripe = new Stripe('sk_test_51T2vpI0AlKSl27CKhQHW9reGxQz9s9Yt4elIt7jOGGGjAELY0BaGMZ8GPpzcG7sRuSVGjM4ALMhd0lBMiOnXTGL1002bRLLS1Z', {
@@ -40,11 +42,45 @@ async function startServer() {
   // Middleware to parse JSON bodies
   app.use(express.json());
 
-  // In-memory member count for demo purposes
-  let memberCount = 1242;
+  app.get('/api/member-count', async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('zippyprocount')
+        .select('count')
+        .eq('id', 1)
+        .single();
+      
+      if (error) throw error;
+      res.json({ count: data.count });
+    } catch (error) {
+      console.error('Error fetching member count:', error);
+      res.json({ count: 1242 }); // Fallback
+    }
+  });
 
-  app.get('/api/member-count', (req, res) => {
-    res.json({ count: memberCount });
+  app.post('/api/delete-account', async (req, res) => {
+    const { userId, email, password } = req.body;
+    
+    try {
+      // 1. Verify password
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (authError) {
+        return res.status(401).json({ error: "Invalid password. Authentication failed." });
+      }
+
+      // 2. Delete user
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (deleteError) throw deleteError;
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Delete account error:', error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   // Logo Generation Endpoint
@@ -147,6 +183,61 @@ async function startServer() {
     } catch (error: any) {
       console.error('Stripe error:', error);
       res.status(400).send({ error: { message: error.message } });
+    }
+  });
+
+  // Stripe Gift Card Endpoint
+  app.post('/api/create-gift-card-intent', async (req, res) => {
+    const { userId, months } = req.body;
+    const numMonths = parseInt(months || '1');
+    
+    // Pricing: $5.00 base, 10% discount per extra month, capped at 50%
+    const discount = Math.min(0.5, (numMonths - 1) * 0.1);
+    const amount = Math.round(numMonths * 500 * (1 - discount));
+
+    try {
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount,
+        currency: 'usd',
+        metadata: { type: 'gift_card', months: numMonths.toString(), userId: userId || '' },
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    } catch (error: any) {
+      console.error('Stripe error:', error);
+      res.status(400).send({ error: { message: error.message } });
+    }
+  });
+
+  app.post('/api/confirm-gift-card', async (req, res) => {
+    const { paymentIntentId } = req.body;
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (paymentIntent.status === 'succeeded' && paymentIntent.metadata.type === 'gift_card') {
+        const months = parseInt(paymentIntent.metadata.months || '1');
+        const code = Math.random().toString(36).substring(2, 14).toUpperCase().match(/.{1,4}/g)?.join('-') || 'ZIPPY-GIFT';
+        
+        // Insert into Supabase
+        const { data, error } = await supabase
+          .from('gift_cards')
+          .insert({
+            code,
+            months,
+            created_by: paymentIntent.metadata.userId || null
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        res.json({ code });
+      } else {
+        res.status(400).json({ error: 'Payment not successful or invalid' });
+      }
+    } catch (error: any) {
+      console.error('Confirm gift card error:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 

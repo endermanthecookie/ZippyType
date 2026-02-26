@@ -17,6 +17,7 @@ interface AISettingsProps {
   speedUnit: 'wpm' | 'cpm';
   setSpeedUnit: (u: 'wpm' | 'cpm') => void;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  isPro?: boolean;
 }
 
 const AISettings: React.FC<AISettingsProps> = ({
@@ -32,10 +33,20 @@ const AISettings: React.FC<AISettingsProps> = ({
   setAiOpponentDifficulty,
   speedUnit,
   setSpeedUnit,
-  saveStatus
+  saveStatus,
+  isPro = false
 }) => {
   return (
     <div className="glass rounded-[2rem] p-10 space-y-10 border border-white/10 shadow-2xl relative animate-in slide-in-from-bottom-4 duration-300">
+      {isPro && (
+        <div className="absolute inset-x-0 -top-4 flex justify-center z-20">
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl border border-white/20 flex items-center gap-2">
+            <CheckCircle2 size={14} />
+            You don't need these settings since you are a ZippyType Pro user
+          </div>
+        </div>
+      )}
+      
       {saveStatus !== 'idle' && (
           <div className={`absolute top-10 right-10 flex items-center gap-2 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-right-2
             ${saveStatus === 'saving' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 

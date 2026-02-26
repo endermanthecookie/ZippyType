@@ -5,13 +5,13 @@ import {
   Gamepad2, LogOut, X, Volume2, VolumeX, Github, Globe, User, EyeOff, Eye, 
   Activity, Dna, Clock, Lock, ShieldAlert, AlertCircle, Timer, Download, Upload, FileJson,
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
-  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle
+  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2
 } from 'lucide-react';
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
 import { fetchTypingText } from './services/geminiService';
 import { fetchGithubTypingText } from './services/githubService';
 import { getCoachReport } from './services/coachService';
-import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, recordIpSoloUsage, getUserIdByIp, getDailyText, initializeUserCredits, saveHistory, fetchHistory as fetchHistoryService } from './services/supabaseService';
+import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, recordIpSoloUsage, getUserIdByIp, getDailyText, initializeUserCredits, saveHistory, fetchHistory as fetchHistoryService, incrementUsage, checkProStatus } from './services/supabaseService';
 import { saveZippyData, loadZippyData, ZippyStats } from './services/storageService';
 import StatsCard from './components/StatsCard';
 import HistoryChart from './components/HistoryChart';
@@ -25,6 +25,7 @@ import Tutorials from './components/Tutorials';
 import AISettings from './components/settings/AISettings';
 import HardwareSettings from './components/settings/HardwareSettings';
 import PomodoroSettingsView from './components/settings/PomodoroSettings';
+import GeneralSettings from './components/settings/GeneralSettings';
 // import { SpeedInsights } from "@vercel/speed-insights/react"
 // import { Analytics } from "@vercel/analytics/react"
 import { motion, AnimatePresence } from 'motion/react';
@@ -65,6 +66,7 @@ const normalizeText = (text: string) => text.replace(/[“”]/g, '"').replace(/
 
 const App: React.FC = () => {
   const [showSubscription, setShowSubscription] = useState(false);
+  const [checkoutMode, setCheckoutMode] = useState<'subscription' | 'gift_card'>('subscription');
   const [clientSecret, setClientSecret] = useState("");
 
   const checkProAction = (action: () => void) => {
@@ -85,6 +87,7 @@ const App: React.FC = () => {
       const data = await res.json();
       if (data.clientSecret) {
         setClientSecret(data.clientSecret);
+        setCheckoutMode('subscription');
         setShowSubscription(true);
       } else {
         alert('Failed to initialize subscription');
@@ -96,6 +99,51 @@ const App: React.FC = () => {
       setIsSubscribing(false);
     }
   };
+  const handleRedeemGiftCard = async () => {
+    if (!giftCardCode.trim()) return;
+    setIsRedeeming(true);
+    try {
+      const { data, error } = await supabase.rpc('redeem_gift_card', { gift_code: giftCardCode.trim().toUpperCase() });
+      if (error) throw error;
+      if (data) {
+        alert("Gift card redeemed successfully! You are now a ZippyType Pro user.");
+        setProfile(prev => ({ ...prev, is_pro: true }));
+        setGiftCardCode("");
+      } else {
+        alert("Invalid or already redeemed gift card code.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Error redeeming gift card: " + e.message);
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  const handleBuyGiftCard = async () => {
+    setIsSubscribing(true);
+    try {
+      const res = await fetch('/api/create-gift-card-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, months: giftMonths })
+      });
+      const data = await res.json();
+      if (data.clientSecret) {
+        setClientSecret(data.clientSecret);
+        setCheckoutMode('gift_card');
+        setShowSubscription(true);
+      } else {
+        alert('Failed to initialize gift card purchase');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error connecting to payment server');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
   const [currentView, setCurrentView] = useState<AppView>(AppView.GAME);
   const [activeSettingsTab, setActiveSettingsTab] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -104,7 +152,14 @@ const App: React.FC = () => {
   const [showGithubHelp, setShowGithubHelp] = useState(false);
   const [showWelcomeProModal, setShowWelcomeProModal] = useState(false);
   const [showCustomLimitModal, setShowCustomLimitModal] = useState(false);
+  const [showProLimitModal, setShowProLimitModal] = useState(false);
+  const [showFreeRaceLimitModal, setShowFreeRaceLimitModal] = useState(false);
+  const [showFreeCustomLimitModal, setShowFreeCustomLimitModal] = useState(false);
   const [githubTokensOut, setGithubTokensOut] = useState(false);
+  const [outTokensCount, setOutTokensCount] = useState(0);
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [giftMonths, setGiftMonths] = useState(1);
+  const [isRedeeming, setIsRedeeming] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [user, setUser] = useState<any>(null);
@@ -113,6 +168,9 @@ const App: React.FC = () => {
   const [showGuide, setShowGuide] = useState(true);
   const [hasUsedSolo, setHasUsedSolo] = useState<boolean | null>(null);
   const [showProModal, setShowProModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [profile, setProfile] = useState<UserProfile>(() => {
     try {
@@ -174,13 +232,26 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkTokens = async () => {
       try {
-        const { data } = await supabase.from('github_tokens').select('status').eq('status', 'out').limit(1);
+        const { data, count } = await supabase
+          .from('github_tokens')
+          .select('status', { count: 'exact' })
+          .eq('status', 'out');
+        
         if (data && data.length > 0) {
           setGithubTokensOut(true);
+          setOutTokensCount(count || data.length);
+        } else {
+          setGithubTokensOut(false);
+          setOutTokensCount(0);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Failed to check tokens:", e);
+      }
     };
+
     checkTokens();
+    const interval = setInterval(checkTokens, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // Neuro-Adaptive State (Problem Keys)
@@ -304,11 +375,15 @@ const App: React.FC = () => {
         const handleAuthUpdate = async (newUser: any) => {
           setUser(newUser);
           if (newUser) {
-            const prefs = await loadUserPreferences(newUser.id);
+            const [prefs, isPro] = await Promise.all([
+              loadUserPreferences(newUser.id),
+              checkProStatus(newUser.id)
+            ]);
+            
             if (prefs) {
               setProvider(prefs.ai_provider);
               setGithubToken(prefs.github_token);
-              setProfile(prefs.user_profile);
+              setProfile({ ...prefs.user_profile, is_pro: isPro });
               setPomodoroSettings(prefs.pomodoro_settings);
               setAiOpponentCount(prefs.ai_opponent_count);
               setAiOpponentDifficulty(prefs.ai_opponent_difficulty);
@@ -317,6 +392,8 @@ const App: React.FC = () => {
               if (prefs.sound_profile) setSoundProfile(prefs.sound_profile);
               if (prefs.keyboard_layout) setKeyboardLayout(prefs.keyboard_layout);
               if (prefs.speed_unit) setSpeedUnit(prefs.speed_unit);
+            } else {
+              setProfile(prev => ({ ...prev, is_pro: isPro }));
             }
             fetchHistory(newUser.id);
             setHasUsedSolo(null);
@@ -571,37 +648,53 @@ const App: React.FC = () => {
   const loadNewText = async (customDiff?: Difficulty) => {
     setLoading(true); const rid = ++requestCounter.current;
     try {
+      // Check usage limits
+      const usageStatus = await incrementUsage(user?.id || null, profile.is_pro || false, !!customTopic);
+      
+      if (usageStatus === -1) {
+        setShowFreeRaceLimitModal(true);
+        throw new Error("Daily race limit reached (Free)");
+      } else if (usageStatus === -2) {
+        setShowFreeCustomLimitModal(true);
+        throw new Error("Daily custom topic limit reached (Free)");
+      } else if (usageStatus === -3) {
+        setShowProLimitModal(true);
+        throw new Error("Daily race limit reached (Pro)");
+      }
+
       let text = "";
       const seed = customTopic;
       
       const generator = async () => {
         if (provider === AIProvider.GEMINI) {
-          return await fetchTypingText(customDiff || difficulty, "General", seed, problemKeys);
+          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, problemKeys);
         } else {
-          if (seed) { // Custom topic requested
-            if (profile.is_pro) {
-              const res = await fetch('/api/generate-pro-text', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ difficulty: customDiff || difficulty, topic: seed, problemKeys: Array.from(problemKeys) })
-              });
-              if (!res.ok) throw new Error("Pro generation failed");
-              const data = await res.json();
-              return data.text;
-            } else {
-              if (!githubToken) {
-                setShowGithubHelp(true);
-                throw new Error("GitHub token required for free users");
-              }
-              if (user) {
-                const { data, error } = await supabase.rpc('increment_custom_text_usage', { user_id_arg: user.id });
-                if (error || data === -1) {
-                  setShowCustomLimitModal(true);
-                  throw new Error("Daily limit reached");
-                }
-              }
-              return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
+          // If user is Pro, always use the server-side generation for GitHub provider
+          // This allows them to use GPT-4o without providing their own token
+          if (profile.is_pro) {
+            const res = await fetch('/api/generate-pro-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                difficulty: customDiff || difficulty, 
+                topic: seed || "General", 
+                problemKeys: Array.from(problemKeys) 
+              })
+            });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || "Pro generation failed");
             }
+            const data = await res.json();
+            return data.text;
+          }
+
+          if (seed) { // Custom topic requested for non-pro users
+            if (!githubToken) {
+              setShowGithubHelp(true);
+              throw new Error("GitHub token required for free users");
+            }
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
           } else {
             return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
           }
@@ -621,10 +714,11 @@ const App: React.FC = () => {
       console.error("AI text generation failed.", e);
       if (rid !== requestCounter.current) return;
       setLoading(false); 
-      if (provider === AIProvider.GEMINI) {
+      const isLimitError = e.message?.toLowerCase().includes("limit reached");
+      if (provider === AIProvider.GEMINI && !isLimitError) {
         setShowGeminiError(true);
-      } else {
-        setCurrentText("Failed to load AI text. Check connection or token.");
+      } else if (provider !== AIProvider.GEMINI) {
+        setCurrentText(e.message || "Failed to load AI text. Check connection or token.");
       }
     }
   };
@@ -675,35 +769,46 @@ const App: React.FC = () => {
         const { error: creditError } = await supabase.rpc('decrement_credits', { user_id_arg: payerId });
         if (creditError) throw creditError;
 
+        // Check usage limits for multiplayer host
+        const usageStatus = await incrementUsage(payerId, profile.is_pro || false, !!customTopic);
+        if (usageStatus === -1) {
+          setShowFreeRaceLimitModal(true);
+          throw new Error("Daily race limit reached (Free)");
+        } else if (usageStatus === -2) {
+          setShowFreeCustomLimitModal(true);
+          throw new Error("Daily custom topic limit reached (Free)");
+        } else if (usageStatus === -3) {
+          setShowProLimitModal(true);
+          throw new Error("Daily race limit reached (Pro)");
+        }
+
         // 3. Generate Text
         let text = "";
         if (provider === AIProvider.GEMINI) {
-          text = await fetchTypingText(difficulty, "General", customTopic, problemKeys);
+          text = await fetchTypingText(difficulty, customTopic || "General", undefined, problemKeys);
         } else {
-          if (customTopic) {
-            if (profile.is_pro) {
-              const res = await fetch('/api/generate-pro-text', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ difficulty, topic: customTopic, problemKeys: Array.from(problemKeys) })
-              });
-              if (!res.ok) throw new Error("Pro generation failed");
-              const data = await res.json();
-              text = data.text;
-            } else {
-              if (!githubToken) {
-                setShowGithubHelp(true);
-                throw new Error("GitHub token required for free users");
-              }
-              if (user) {
-                const { data, error } = await supabase.rpc('increment_custom_text_usage', { user_id_arg: user.id });
-                if (error || data === -1) {
-                  setShowCustomLimitModal(true);
-                  throw new Error("Daily limit reached");
-                }
-              }
-              text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
+          if (profile.is_pro) {
+            const res = await fetch('/api/generate-pro-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                difficulty, 
+                topic: customTopic || "General", 
+                problemKeys: Array.from(problemKeys) 
+              })
+            });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              throw new Error(errData.error || "Pro generation failed");
             }
+            const data = await res.json();
+            text = data.text;
+          } else if (customTopic) {
+            if (!githubToken) {
+              setShowGithubHelp(true);
+              throw new Error("GitHub token required for free users");
+            }
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
           } else {
             text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
           }
@@ -715,9 +820,10 @@ const App: React.FC = () => {
           text: normalized 
         }).eq('id', roomId);
         
-      } catch (e) {
+      } catch (e: any) {
         console.error("Multiplayer start failed:", e);
-        if (provider === AIProvider.GEMINI) setShowGeminiError(true);
+        const isLimitError = e.message?.toLowerCase().includes("limit reached");
+        if (provider === AIProvider.GEMINI && !isLimitError) setShowGeminiError(true);
       } finally {
         setLoading(false);
       }
@@ -885,6 +991,37 @@ const App: React.FC = () => {
       const nt = currentText.substring(0, Math.min(userInput.length + skip, currentText.length)); setUserInput(nt); setPlayers(ps => ps.map(p => { if (p.id === 'me') return {...p, index: nt.length}; return p; }));
     } else if (type === PowerUpType.TIME_FREEZE) { setIsFrozen(true); setTimeout(() => setIsFrozen(false), 3000); }
     else if (type === PowerUpType.SLOW_OPPONENTS) { setIsSlowed(true); setTimeout(() => setIsSlowed(false), 5000); }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user || !deletePassword) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: user.id, 
+          email: user.email, 
+          password: deletePassword 
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await supabase.auth.signOut();
+        setShowDeleteModal(false);
+        setDeletePassword("");
+        alert("Your account has been permanently deleted.");
+        window.location.reload();
+      } else {
+        alert(data.error || "Failed to delete account. Check your password.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while deleting your account.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleExport = () => {
@@ -1094,6 +1231,83 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {showFreeRaceLimitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
+                <AlertCircle size={32} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">Daily Race Limit</h3>
+              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 races for today. Upgrade to ZippyType Pro for 200 daily races!</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowFreeRaceLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
+              <button 
+                onClick={() => { 
+                  setShowFreeRaceLimitModal(false); 
+                  setActiveSettingsTab('subscription'); 
+                  setCurrentView(AppView.SETTINGS); 
+                }} 
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Upgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFreeCustomLimitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
+                <Sparkles size={32} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">Custom Topic Limit</h3>
+              <p className="text-[11px] font-medium text-slate-400">Free users are limited to 2 custom topics per day. Upgrade to ZippyType Pro for unlimited custom generation!</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowFreeCustomLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
+              <button 
+                onClick={() => { 
+                  setShowFreeCustomLimitModal(false); 
+                  setActiveSettingsTab('subscription'); 
+                  setCurrentView(AppView.SETTINGS); 
+                }} 
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20"
+              >
+                Upgrade
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProLimitModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="glass border border-indigo-500/30 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-xl">
+                <Timer size={32} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">Chill out!</h3>
+              <p className="text-[11px] font-medium text-slate-400">You’ve hit your race limit of ZippyType Pro. Wait until tommorow to do more ;-)</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowProLimitModal(false)} className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20">Got it!</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCustomLimitModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-300">
           <div className="glass border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-3xl text-center space-y-6">
@@ -1156,7 +1370,7 @@ const App: React.FC = () => {
         {githubTokensOut && (
           <div className="w-full bg-rose-500/20 border border-rose-500/30 text-rose-400 p-3 rounded-xl text-center text-[10px] font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-4">
             <AlertTriangle size={14} className="inline-block mr-2 mb-0.5" />
-            Some ZippyType Pro users will experience slowdowns because some API's are not available.
+            {outTokensCount} out of 10 are not available. We are fixing it as Zippy as possible.
           </div>
         )}
         <header className="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-[1.75rem] p-6 shadow-2xl relative overflow-hidden border border-white/10">
@@ -1290,6 +1504,22 @@ const App: React.FC = () => {
                 
                 <div className="grid grid-cols-1 gap-4">
                   <button 
+                    onClick={() => setActiveSettingsTab('general')}
+                    className="flex items-center justify-between p-6 bg-black/40 hover:bg-emerald-500/10 border border-white/5 hover:border-emerald-500/30 rounded-2xl transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/5 rounded-xl group-hover:scale-110 transition-transform">
+                        <SettingsIcon className="text-emerald-400" size={20} />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">General Settings</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Sound profiles, layouts, and localization</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-700 group-hover:text-emerald-400 transition-colors" />
+                  </button>
+
+                  <button 
                     onClick={() => setActiveSettingsTab('hardware')}
                     className="flex items-center justify-between p-6 bg-black/40 hover:bg-indigo-500/10 border border-white/5 hover:border-indigo-500/30 rounded-2xl transition-all group"
                   >
@@ -1353,13 +1583,21 @@ const App: React.FC = () => {
                     <ChevronRight size={20} className="text-slate-700 group-hover:text-emerald-400 transition-colors" />
                   </button>
 
-                  <div className="pt-4 flex justify-center">
+                  <div className="pt-4 flex flex-col items-center gap-4">
                     <button 
                       onClick={handleExport}
                       className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/5"
                     >
                       <Download size={14} /> Export Save Data (.ztx)
                     </button>
+                    {user && (
+                      <button 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
+                      >
+                        <ShieldAlert size={14} /> Delete Account
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1371,6 +1609,15 @@ const App: React.FC = () => {
                 >
                   <RotateCcw size={14} className="rotate-90" /> Back to Settings
                 </button>
+
+                {activeSettingsTab === 'general' && (
+                  <GeneralSettings 
+                    soundProfile={soundProfile}
+                    setSoundProfile={setSoundProfile}
+                    keyboardLayout={keyboardLayout}
+                    setKeyboardLayout={setKeyboardLayout}
+                  />
+                )}
 
                 {activeSettingsTab === 'hardware' && (
                   <HardwareSettings 
@@ -1400,28 +1647,12 @@ const App: React.FC = () => {
                     speedUnit={speedUnit}
                     setSpeedUnit={setSpeedUnit}
                     saveStatus={saveStatus}
+                    isPro={profile.is_pro}
                   />
                 )}
 
                 {activeSettingsTab === 'subscription' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
-                      <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-                        <Volume2 size={14} className="text-indigo-400" /> Sound Profile
-                      </h3>
-                      <div className="grid grid-cols-3 gap-3">
-                        {Object.values(SoundProfile).map(p => (
-                          <button
-                            key={p}
-                            onClick={() => setSoundProfile(p)}
-                            className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${soundProfile === p ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-black/20 text-slate-500 border-white/5 hover:border-white/10'}`}
-                          >
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     <div className="flex items-center gap-4 p-6 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl border border-indigo-500/20">
                       <div className="p-4 bg-indigo-500 rounded-xl shadow-lg shadow-indigo-500/20">
                         <Rocket size={32} className="text-white" />
@@ -1463,26 +1694,85 @@ const App: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center gap-4 pt-4">
-                      <div className="text-center">
-                        <span className="text-3xl font-black text-white">$5.00</span>
-                        <span className="text-sm font-medium text-slate-500"> / month</span>
+                    {!profile.is_pro && (
+                      <div className="flex flex-col items-center gap-4 pt-4">
+                        <div className="text-center">
+                          <span className="text-3xl font-black text-white">$5.00</span>
+                          <span className="text-sm font-medium text-slate-500"> / month</span>
+                        </div>
+                        <button 
+                          onClick={handleSubscribe}
+                          disabled={isSubscribing}
+                          className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {isSubscribing ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            "Upgrade to Pro"
+                          )}
+                        </button>
+                        <p className="text-[10px] text-slate-600">Secure payment via Stripe. Cancel anytime.</p>
                       </div>
-                      <button 
-                        onClick={handleSubscribe}
-                        disabled={isSubscribing}
-                        className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isSubscribing ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          "Upgrade to Pro"
-                        )}
-                      </button>
-                      <p className="text-[10px] text-slate-600">Secure payment via Stripe. Cancel anytime.</p>
+                    )}
+
+                    <div className="p-8 glass border border-white/10 rounded-[2rem] space-y-8">
+                      <div className="flex items-center gap-3">
+                        <Gift size={20} className="text-pink-500" />
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Gift Cards</h3>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Redeem a code</p>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="XXXX-XXXX-XXXX"
+                              value={giftCardCode}
+                              onChange={(e) => setGiftCardCode(e.target.value.toUpperCase())}
+                              className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xs outline-none focus:border-indigo-500 transition-all"
+                            />
+                            <button 
+                              onClick={handleRedeemGiftCard}
+                              disabled={isRedeeming || !giftCardCode}
+                              className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"
+                            >
+                              {isRedeeming ? "..." : "Redeem"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gift ZippyType Pro</p>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
+                              <span className="text-[10px] font-black text-white uppercase tracking-widest">Duration</span>
+                              <div className="flex items-center gap-3">
+                                <button onClick={() => setGiftMonths(m => Math.max(1, m - 1))} className="p-1 hover:bg-white/10 rounded text-indigo-400">-</button>
+                                <span className="text-xs font-black text-white w-8 text-center">{giftMonths}m</span>
+                                <button onClick={() => setGiftMonths(m => Math.min(12, m + 1))} className="p-1 hover:bg-white/10 rounded text-indigo-400">+</button>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between px-1">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Price</span>
+                              <span className="text-sm font-black text-white">
+                                ${(giftMonths * 5 * Math.max(0.5, 1 - (giftMonths - 1) * 0.1)).toFixed(2)}
+                              </span>
+                            </div>
+                            <button 
+                              onClick={handleBuyGiftCard}
+                              disabled={isSubscribing}
+                              className="w-full py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-pink-500/20"
+                            >
+                              Buy Gift Card
+                            </button>
+                            <p className="text-[9px] text-slate-600 italic">Buy a Pro subscription for a friend.</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1569,7 +1859,13 @@ const App: React.FC = () => {
                         AI Bots
                       </button>
                       <button 
-                        onClick={() => setCompetitiveType(CompetitiveType.MULTIPLAYER)}
+                        onClick={() => {
+                          if (!profile.is_pro) {
+                            setShowProModal(true);
+                            return;
+                          }
+                          setCompetitiveType(CompetitiveType.MULTIPLAYER);
+                        }}
                         className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${competitiveType === CompetitiveType.MULTIPLAYER ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
                       >
                         Real-time Multiplayer
@@ -1749,12 +2045,13 @@ const App: React.FC = () => {
       {showSubscription && clientSecret && (
         <StripeCheckout 
           clientSecret={clientSecret} 
+          mode={checkoutMode}
           onSuccess={async () => { 
-            const newProfile = { ...profile, is_pro: true };
-            setProfile(newProfile);
-            setShowSubscription(false); 
-            setShowWelcomeProModal(true);
-            if (user) {
+            if (checkoutMode === 'subscription') {
+              const newProfile = { ...profile, is_pro: true };
+              setProfile(newProfile);
+              setShowWelcomeProModal(true);
+              if (user) {
               const prefs: UserPreferences = { 
                 ai_provider: provider, 
                 github_token: githubToken, 
@@ -1769,9 +2066,61 @@ const App: React.FC = () => {
               };
               await saveUserPreferences(user.id, prefs);
             }
-          }} 
-          onClose={() => setShowSubscription(false)} 
-        />
+          }
+          setShowSubscription(false);
+        }} 
+        onClose={() => setShowSubscription(false)} 
+      />
+    )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-[#0f172a] border border-rose-500/30 rounded-[2.5rem] p-10 shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-rose-500 rounded-t-[2.5rem]" />
+            
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="p-5 bg-rose-500/10 rounded-3xl border border-rose-500/20">
+                <ShieldAlert size={48} className="text-rose-500" />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Delete Account?</h3>
+                <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                  This action is permanent. All your stats, history, and Pro status will be lost forever.
+                </p>
+              </div>
+
+              <div className="w-full space-y-4">
+                <div className="space-y-2 text-left">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Confirm Password</label>
+                  <input 
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Type your password to confirm"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white font-medium text-sm outline-none focus:border-rose-500 transition-all"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => { setShowDeleteModal(false); setDeletePassword(""); }}
+                    className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white font-black rounded-2xl text-[10px] uppercase tracking-widest transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting || !deletePassword}
+                    className="flex-1 py-4 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? <Loader2 className="animate-spin" size={16} /> : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

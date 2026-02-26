@@ -8,11 +8,12 @@ import { X, Loader2, CheckCircle2 } from 'lucide-react';
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51T2vpI0AlKSl27CKYtFrULhI1NMYDeKod77bdYN3DapHAonav40c9aBzpUl5fhyKm2bejqfl92WPrQPpOubpiGs300xj9fJ2Lr');
 
 interface CheckoutFormProps {
-  onSuccess: () => void;
+  mode: 'subscription' | 'gift_card';
+  onSuccess: (paymentIntentId?: string) => void;
   onCancel: () => void;
 }
 
-const CheckoutForm: React.FC<CheckoutFormProps> = ({ onSuccess, onCancel }) => {
+const CheckoutForm: React.FC<CheckoutFormProps> = ({ mode, onSuccess, onCancel }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [message, setMessage] = useState<string | null>(null);
@@ -31,7 +32,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onSuccess, onCancel }) => {
       switch (paymentIntent?.status) {
         case "succeeded":
           setMessage("Payment succeeded!");
-          onSuccess();
+          onSuccess(paymentIntent.id);
           break;
         case "processing":
           setMessage("Your payment is processing.");
@@ -53,7 +54,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onSuccess, onCancel }) => {
 
     setIsLoading(true);
 
-    const { error } = await stripe.confirmPayment({
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: {
         // Make sure to change this to your payment completion page
@@ -68,9 +69,11 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onSuccess, onCancel }) => {
       } else {
         setMessage("An unexpected error occurred.");
       }
-    } else {
+    } else if (paymentIntent && paymentIntent.status === "succeeded") {
       setMessage("Payment succeeded!");
-      onSuccess();
+      onSuccess(paymentIntent.id);
+    } else {
+      // For redirect flows, the return_url will handle it
     }
 
     setIsLoading(false);
@@ -109,12 +112,14 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onSuccess, onCancel }) => {
 
 interface StripeCheckoutProps {
   clientSecret: string;
+  mode: 'subscription' | 'gift_card';
   onSuccess: () => void;
   onClose: () => void;
 }
 
-export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, onSuccess, onClose }) => {
+export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, mode, onSuccess, onClose }) => {
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [giftCode, setGiftCode] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/member-count')
@@ -123,10 +128,28 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
       .catch(() => setMemberCount(1242));
   }, []);
 
-  const getOrdinal = (n: number) => {
-    const s = ["th", "st", "nd", "rd"];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  const handleSuccess = async (paymentIntentId?: string) => {
+    if (mode === 'gift_card' && paymentIntentId) {
+      try {
+        const res = await fetch('/api/confirm-gift-card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId })
+        });
+        const data = await res.json();
+        if (data.code) {
+          setGiftCode(data.code);
+        }
+      } catch (e) {
+        console.error("Gift card confirmation failed", e);
+      }
+    } else {
+      onSuccess();
+    }
+  };
+
+  const formatMemberCount = (n: number) => {
+    return n.toString().padStart(8, '0');
   };
 
   const options = useMemo(() => ({
@@ -144,7 +167,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
             <h3 className="text-lg font-black text-white tracking-tight">Secure Checkout</h3>
             {memberCount !== null && (
               <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">
-                You will be our {getOrdinal(memberCount + 1)} member!
+                You will be member #{formatMemberCount(memberCount + 1)}!
               </p>
             )}
           </div>
@@ -157,10 +180,40 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, on
         </div>
 
         <div className="p-6">
-          {clientSecret ? (
+          {giftCode ? (
+            <div className="text-center space-y-6 py-8 animate-in zoom-in-95 duration-500">
+              <div className="flex justify-center">
+                <div className="p-4 bg-emerald-500/10 text-emerald-500 rounded-full">
+                  <CheckCircle2 size={48} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-xl font-black text-white uppercase tracking-tight">Gift Card Created!</h4>
+                <p className="text-xs text-slate-400">Share this code with your friend to give them 1 month of Pro.</p>
+              </div>
+              <div className="p-6 bg-black/40 border border-indigo-500/30 rounded-2xl">
+                <span className="text-2xl font-mono font-black text-indigo-400 tracking-widest">{giftCode}</span>
+              </div>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(giftCode);
+                  alert("Code copied to clipboard!");
+                }}
+                className="text-[10px] font-black text-indigo-400 uppercase tracking-widest hover:text-indigo-300 transition-colors"
+              >
+                Copy Code
+              </button>
+              <button 
+                onClick={onClose}
+                className="w-full py-4 bg-white/10 hover:bg-white/20 text-white font-black rounded-xl text-[10px] uppercase tracking-widest transition-all"
+              >
+                Done
+              </button>
+            </div>
+          ) : clientSecret ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <Elements key={clientSecret} options={options} stripe={stripePromise}>
-                <CheckoutForm onSuccess={onSuccess} onCancel={onClose} />
+                <CheckoutForm mode={mode} onSuccess={handleSuccess} onCancel={onClose} />
               </Elements>
             </div>
           ) : (
