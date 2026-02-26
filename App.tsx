@@ -7,7 +7,7 @@ import {
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
   Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown
 } from 'lucide-react';
-import enText from './Lang/english.lang?raw';
+import enText from './src/Lang/english.lang?raw';
 
 const EN = JSON.parse(enText);
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
@@ -119,7 +119,7 @@ const App: React.FC = () => {
       const { data, error } = await supabase.rpc('redeem_gift_card', { gift_code: giftCardCode.trim().toUpperCase() });
       if (error) throw error;
       if (data) {
-        setRedemptionResult({ success: true, message: "Gift card redeemed successfully! You are now a ZippyType Pro user." });
+        setRedemptionResult({ success: true, message: `Gift card redeemed successfully! You are now a ${EN.zippyTypePro} user.` });
         setProfile(prev => ({ ...prev, is_pro: true }));
         setGiftCardCode("");
       } else {
@@ -899,7 +899,7 @@ const App: React.FC = () => {
   const completeRace = async () => {
     setIsActive(false); playSound('finish');
     const duration = (gameMode === GameMode.TIME_ATTACK || gameMode === GameMode.BEAT_THE_CLOCK) ? 60 : elapsedTime;
-    const wpm = currentWpmDisplay; const accuracy = currentAccuracyDisplay;
+    const wpm = Math.round(currentWpmDisplay); const accuracy = Math.round(currentAccuracyDisplay);
 
     if (user) {
       const pbKey = `pb_${difficulty}_${gameMode}`;
@@ -1153,8 +1153,8 @@ const App: React.FC = () => {
                  </div>
                  
                  <div className="p-4 bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 rounded-2xl text-left">
-                   <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">ZippyType Pro</p>
-                   <p className="text-[11px] font-bold text-white leading-relaxed">Annoying? Never deal with this again with ZippyType Pro. Only 5 dollars a month!</p>
+                   <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">{EN.zippyTypePro}</p>
+                   <p className="text-[11px] font-bold text-white leading-relaxed">Annoying? Never deal with this again with {EN.zippyTypePro}. Only 5 dollars a month!</p>
                    <button 
                      onClick={() => { setShowGeminiError(false); setActiveSettingsTab('subscription'); setCurrentView(AppView.SETTINGS); }}
                      className="mt-3 text-[9px] font-black text-indigo-400 hover:text-white uppercase tracking-widest flex items-center gap-1 transition-colors"
@@ -1235,7 +1235,7 @@ const App: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Daily Race Limit</h3>
-              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 races for today. Upgrade to ZippyType Pro for 200 daily races!</p>
+              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 races for today. Upgrade to {EN.zippyTypePro} for 200 daily races!</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowFreeRaceLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
@@ -1264,7 +1264,7 @@ const App: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Custom Topic Limit</h3>
-              <p className="text-[11px] font-medium text-slate-400">Free users are limited to 2 custom topics per day. Upgrade to ZippyType Pro for unlimited custom generation!</p>
+              <p className="text-[11px] font-medium text-slate-400">Free users are limited to 2 custom topics per day. Upgrade to {EN.zippyTypePro} for unlimited custom generation!</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowFreeCustomLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
@@ -1293,7 +1293,7 @@ const App: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Chill out!</h3>
-              <p className="text-[11px] font-medium text-slate-400">You’ve hit your race limit of ZippyType Pro. Wait until tommorow to do more ;-)</p>
+              <p className="text-[11px] font-medium text-slate-400">You’ve hit your race limit of {EN.zippyTypePro}. Wait until tommorow to do more ;-)</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowProLimitModal(false)} className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20">Got it!</button>
@@ -1312,7 +1312,7 @@ const App: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h3 className="text-sm font-black text-white uppercase tracking-tighter">Daily Limit Reached</h3>
-              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 custom practice texts for today. Upgrade to ZippyType Pro for unlimited custom generation!</p>
+              <p className="text-[11px] font-medium text-slate-400">You have reached your limit of 25 custom practice texts for today. Upgrade to {EN.zippyTypePro} for unlimited custom generation!</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowCustomLimitModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Dismiss</button>
@@ -1340,8 +1340,8 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-sm font-black text-white uppercase tracking-tighter">ZippyType Pro Feature</h3>
-              <p className="text-[11px] font-medium text-slate-400">This feature is only for ZippyType Pro users. Upgrade now to unlock custom themes, unlimited AI generation, and advanced analytics.</p>
+              <h3 className="text-sm font-black text-white uppercase tracking-tighter">{EN.zippyTypePro} Feature</h3>
+              <p className="text-[11px] font-medium text-slate-400">This feature is only for {EN.zippyTypePro} users. Upgrade now to unlock custom themes, unlimited AI generation, and advanced analytics.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowProModal(false)} className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all">Maybe Later</button>
@@ -1413,19 +1413,19 @@ const App: React.FC = () => {
               )}
             </div>
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-white transition-all shadow-md">{soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
-            {user ? (<button onClick={() => supabase.auth.signOut()} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-rose-400 transition-all shadow-md"><LogOut size={20} /></button>) : (<button onClick={() => setShowAuth(true)} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95">Login</button>)}
+            {user ? (<button onClick={() => supabase.auth.signOut()} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-rose-400 transition-all shadow-md"><LogOut size={20} /></button>) : (<button onClick={() => setShowAuth(true)} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95">{EN.login}</button>)}
           </nav>
         </header>
 
         {currentView === AppView.PROFILE ? (
           <div className="glass rounded-[2rem] p-10 space-y-10 animate-in zoom-in-95 duration-300 border border-white/10 shadow-2xl">
-            <div className="flex items-center gap-3"><div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl"><User size={22} /></div><h2 className="text-base font-black text-white uppercase tracking-tighter">Profile Details</h2></div>
+            <div className="flex items-center gap-3"><div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl"><User size={22} /></div><h2 className="text-base font-black text-white uppercase tracking-tighter">{EN.profileDetails}</h2></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-6">
-                <div className="space-y-3"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">User Name</label><input value={profile.username} onChange={e => setProfile({...profile, username: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white font-bold text-sm focus:border-emerald-500 transition-all outline-none shadow-inner" /></div>
+                <div className="space-y-3"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">{EN.userName}</label><input value={profile.username} onChange={e => setProfile({...profile, username: e.target.value})} className="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white font-bold text-sm focus:border-emerald-500 transition-all outline-none shadow-inner" /></div>
                 <div className="space-y-3">
                   <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2">
-                    Accent Color
+                    {EN.accentColor}
                     {!profile.is_pro && <Lock size={10} className="text-amber-500" />}
                   </label>
                   <div className="flex gap-4">
@@ -1452,7 +1452,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="space-y-3">
                   <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] flex items-center gap-2">
-                    Theme
+                    {EN.theme}
                     {!profile.is_pro && <Lock size={10} className="text-amber-500" />}
                   </label>
                   <div className="grid grid-cols-2 gap-4">
@@ -1512,7 +1512,7 @@ const App: React.FC = () => {
                         <SettingsIcon className="text-emerald-400" size={20} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">General Settings</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">{EN.generalSettings}</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Sound profiles, layouts, and localization</p>
                       </div>
                     </div>
@@ -1528,7 +1528,7 @@ const App: React.FC = () => {
                         <KeyboardIcon className="text-indigo-400" size={20} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Hardware Tactical Lab</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">{EN.hardwareSettings}</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Calibrate and test your physical inputs</p>
                       </div>
                     </div>
@@ -1544,7 +1544,7 @@ const App: React.FC = () => {
                         <Globe className="text-purple-400" size={20} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Advanced AI Config</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">{EN.aiSettings}</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Manage text generators and bot parameters</p>
                       </div>
                     </div>
@@ -1560,7 +1560,7 @@ const App: React.FC = () => {
                         <Timer className="text-orange-400" size={20} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Focus Engine (Pomodoro)</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">{EN.focusEngine}</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Configure focus blocks and recovery intervals</p>
                       </div>
                     </div>
@@ -1576,7 +1576,7 @@ const App: React.FC = () => {
                         <Rocket className="text-emerald-400" size={20} />
                       </div>
                       <div className="text-left">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">ZippyType Pro</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">{EN.zippyTypePro}</h3>
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Manage subscription and billing</p>
                       </div>
                     </div>
@@ -1588,14 +1588,14 @@ const App: React.FC = () => {
                       onClick={handleExport}
                       className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-white/5"
                     >
-                      <Download size={14} /> Export Save Data (.ztx)
+                      <Download size={14} /> {EN.exportSaveData}
                     </button>
                     {user && (
                       <button 
                         onClick={() => setShowDeleteModal(true)}
                         className="flex items-center gap-2 px-6 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border border-rose-500/20"
                       >
-                        <ShieldAlert size={14} /> Delete Account
+                        <ShieldAlert size={14} /> {EN.deleteAccount}
                       </button>
                     )}
                   </div>
@@ -1607,7 +1607,7 @@ const App: React.FC = () => {
                   onClick={() => setActiveSettingsTab(null)}
                   className="flex items-center gap-2 text-slate-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors mb-2"
                 >
-                  <RotateCcw size={14} className="rotate-90" /> Back to Settings
+                  <RotateCcw size={14} className="rotate-90" /> {EN.backToSettings}
                 </button>
 
                 {activeSettingsTab === 'general' && (
@@ -1747,7 +1747,7 @@ const App: React.FC = () => {
                         </div>
 
                         <div className="space-y-4">
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Gift ZippyType Pro</p>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{EN.giftZippyPro}</p>
                           <div className="space-y-3">
                             <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl border border-white/5">
                               <span className="text-[10px] font-black text-white uppercase tracking-widest">Duration</span>
@@ -1961,7 +1961,7 @@ const App: React.FC = () => {
                 <StatsCard label="Speed" value={`${currentWpmDisplay}`} icon={<Zap />} color={profile.accentColor} />
                 <div className="absolute top-2 right-2 text-[8px] font-black uppercase tracking-widest text-slate-600">{speedUnit.toUpperCase()}</div>
                 <StatsCard label="Precision" value={`${currentAccuracyDisplay}%`} icon={<Target />} color="emerald" />
-                <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col justify-center shadow-md"><p className="text-slate-500 text-[8px] font-black uppercase tracking-[0.3em] mb-1 leading-none">Adaptive Mode</p><div className="flex gap-2 min-h-[32px] items-center"><span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Normal</span>}</div></div>
+                <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col justify-center shadow-md"><p className="text-slate-500 text-[8px] font-black uppercase tracking-[0.3em] mb-1 leading-none">Adaptive Mode</p><div className="flex gap-2 min-h-[32px] items-center"><span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Normal</span></div></div>
               </div>
 
               <div className="relative group mb-10">

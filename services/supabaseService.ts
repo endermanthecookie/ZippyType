@@ -266,8 +266,8 @@ export const saveHistory = async (userId: string, result: any) => {
   try {
     const { error } = await supabase.from('history').insert({
       user_id: userId,
-      wpm: result.wpm,
-      accuracy: result.accuracy,
+      wpm: Math.round(result.wpm),
+      accuracy: Math.round(result.accuracy),
       time: result.time,
       errors: result.errors,
       difficulty: result.difficulty,
