@@ -223,6 +223,13 @@ const App: React.FC = () => {
   const [calibratedKeys, setCalibratedKeys] = useState<Set<string>>(new Set());
   const [keyMappings, setKeyMappings] = useState<Record<string, string>>({});
   const [speedUnit, setSpeedUnit] = useState<'wpm' | 'cpm'>('wpm');
+  const [problemKeys, setProblemKeys] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('zippy_problem_keys') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // Apply theme
   useEffect(() => {
