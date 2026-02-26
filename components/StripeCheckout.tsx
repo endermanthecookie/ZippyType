@@ -120,6 +120,7 @@ interface StripeCheckoutProps {
 export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, mode, onSuccess, onClose }) => {
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [giftCode, setGiftCode] = useState<string | null>(null);
+  const [giftMonths, setGiftMonths] = useState<number>(1);
 
   useEffect(() => {
     fetch('/api/member-count')
@@ -139,6 +140,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, mo
         const data = await res.json();
         if (data.code) {
           setGiftCode(data.code);
+          setGiftMonths(data.months || 1);
         }
       } catch (e) {
         console.error("Gift card confirmation failed", e);
@@ -189,7 +191,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({ clientSecret, mo
               </div>
               <div className="space-y-2">
                 <h4 className="text-xl font-black text-white uppercase tracking-tight">Gift Card Created!</h4>
-                <p className="text-xs text-slate-400">Share this code with your friend to give them 1 month of Pro.</p>
+                <p className="text-xs text-slate-400">Share this code with your friend to give them {giftMonths} {giftMonths === 1 ? 'month' : 'months'} of Pro.</p>
               </div>
               <div className="p-6 bg-black/40 border border-indigo-500/30 rounded-2xl">
                 <span className="text-2xl font-mono font-black text-indigo-400 tracking-widest">{giftCode}</span>

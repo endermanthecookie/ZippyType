@@ -5,8 +5,11 @@ import {
   Gamepad2, LogOut, X, Volume2, VolumeX, Github, Globe, User, EyeOff, Eye, 
   Activity, Dna, Clock, Lock, ShieldAlert, AlertCircle, Timer, Download, Upload, FileJson,
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
-  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2
+  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown
 } from 'lucide-react';
+import enText from './Lang/english.lang?raw';
+
+const EN = JSON.parse(enText);
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
 import { fetchTypingText } from './services/geminiService';
 import { fetchGithubTypingText } from './services/githubService';
@@ -99,6 +102,16 @@ const App: React.FC = () => {
       setIsSubscribing(false);
     }
   };
+  const handleGiftCardInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (val.length > 12) val = val.substring(0, 12);
+    
+    // Auto-dash every 4 characters
+    const parts = val.match(/.{1,4}/g);
+    const dashed = parts ? parts.join('-') : val;
+    setGiftCardCode(dashed);
+  };
+
   const handleRedeemGiftCard = async () => {
     if (!giftCardCode.trim()) return;
     setIsRedeeming(true);
@@ -106,15 +119,15 @@ const App: React.FC = () => {
       const { data, error } = await supabase.rpc('redeem_gift_card', { gift_code: giftCardCode.trim().toUpperCase() });
       if (error) throw error;
       if (data) {
-        alert("Gift card redeemed successfully! You are now a ZippyType Pro user.");
+        setRedemptionResult({ success: true, message: "Gift card redeemed successfully! You are now a ZippyType Pro user." });
         setProfile(prev => ({ ...prev, is_pro: true }));
         setGiftCardCode("");
       } else {
-        alert("Invalid or already redeemed gift card code.");
+        setRedemptionResult({ success: false, message: "Invalid or already redeemed gift card code." });
       }
     } catch (e: any) {
       console.error(e);
-      alert("Error redeeming gift card: " + e.message);
+      setRedemptionResult({ success: false, message: e.message || "Error redeeming gift card." });
     } finally {
       setIsRedeeming(false);
     }
@@ -160,6 +173,7 @@ const App: React.FC = () => {
   const [giftCardCode, setGiftCardCode] = useState("");
   const [giftMonths, setGiftMonths] = useState(1);
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const [redemptionResult, setRedemptionResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [user, setUser] = useState<any>(null);
@@ -255,11 +269,6 @@ const App: React.FC = () => {
   }, []);
 
   // Neuro-Adaptive State (Problem Keys)
-  const [problemKeys, setProblemKeys] = useState<string[]>(() => {
-    const saved = localStorage.getItem('zippy_problem_keys');
-    return saved ? JSON.parse(saved) : [];
-  });
-
   const [customTopic, setCustomTopic] = useState("");
   const [currentText, setCurrentText] = useState("");
   const [displayedText, setDisplayedText] = useState("");
@@ -667,7 +676,7 @@ const App: React.FC = () => {
       
       const generator = async () => {
         if (provider === AIProvider.GEMINI) {
-          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, problemKeys);
+          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined);
         } else {
           // If user is Pro, always use the server-side generation for GitHub provider
           // This allows them to use GPT-4o without providing their own token
@@ -677,8 +686,7 @@ const App: React.FC = () => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 difficulty: customDiff || difficulty, 
-                topic: seed || "General", 
-                problemKeys: Array.from(problemKeys) 
+                topic: seed || "General"
               })
             });
             if (!res.ok) {
@@ -694,9 +702,9 @@ const App: React.FC = () => {
               setShowGithubHelp(true);
               throw new Error("GitHub token required for free users");
             }
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, githubToken);
           } else {
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, problemKeys, githubToken);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, githubToken);
           }
         }
       };
@@ -785,7 +793,7 @@ const App: React.FC = () => {
         // 3. Generate Text
         let text = "";
         if (provider === AIProvider.GEMINI) {
-          text = await fetchTypingText(difficulty, customTopic || "General", undefined, problemKeys);
+          text = await fetchTypingText(difficulty, customTopic || "General", undefined);
         } else {
           if (profile.is_pro) {
             const res = await fetch('/api/generate-pro-text', {
@@ -793,8 +801,7 @@ const App: React.FC = () => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 difficulty, 
-                topic: customTopic || "General", 
-                problemKeys: Array.from(problemKeys) 
+                topic: customTopic || "General"
               })
             });
             if (!res.ok) {
@@ -893,19 +900,6 @@ const App: React.FC = () => {
     setIsActive(false); playSound('finish');
     const duration = (gameMode === GameMode.TIME_ATTACK || gameMode === GameMode.BEAT_THE_CLOCK) ? 60 : elapsedTime;
     const wpm = currentWpmDisplay; const accuracy = currentAccuracyDisplay;
-
-    // Dynamic Difficulty analysis: Update problem keys based on match performance
-    const matchProblemKeys = Object.entries(errorMap)
-      .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
-      .slice(0, 3)
-      .map(entry => entry[0]);
-
-    if (matchProblemKeys.length > 0) {
-      setProblemKeys(prev => {
-        const next = new Set([...prev, ...matchProblemKeys]);
-        return Array.from(next).slice(-10); // Keep top 10 targeted keys
-      });
-    }
 
     if (user) {
       const pbKey = `pb_${difficulty}_${gameMode}`;
@@ -1029,7 +1023,7 @@ const App: React.FC = () => {
     const avgAcc = history.length > 0 ? history.reduce((acc, curr) => acc + curr.accuracy, 0) / history.length : 100;
     // Fix: Renamed local totalKeys to allKeys to avoid shadowing the state variable and resolve potential type errors in arithmetic operations on line 396.
     const allKeys = history.reduce((acc, curr) => acc + (curr.textLength || 0), 0);
-    const stats: ZippyStats = { level: Math.floor(allKeys / 1000) + 1, topWPM: maxWpm, accuracy: avgAcc, totalKeystrokes: allKeys, problemKeys: problemKeys };
+    const stats: ZippyStats = { level: Math.floor(allKeys / 1000) + 1, topWPM: maxWpm, accuracy: avgAcc, totalKeystrokes: allKeys };
     const blob = saveZippyData(stats);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1411,6 +1405,12 @@ const App: React.FC = () => {
                 <SettingsIcon size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
+              {!profile.is_pro && user && !user.is_ip_persistent && (
+                <button onClick={() => { setCurrentView(AppView.SETTINGS); setActiveSettingsTab('subscription'); }} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2">
+                  <Crown size={14} />
+                  {EN.upgradeToPro}
+                </button>
+              )}
             </div>
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-white transition-all shadow-md">{soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
             {user ? (<button onClick={() => supabase.auth.signOut()} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-rose-400 transition-all shadow-md"><LogOut size={20} /></button>) : (<button onClick={() => setShowAuth(true)} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95">Login</button>)}
@@ -1653,13 +1653,14 @@ const App: React.FC = () => {
 
                 {activeSettingsTab === 'subscription' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center gap-4 p-6 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl border border-indigo-500/20">
-                      <div className="p-4 bg-indigo-500 rounded-xl shadow-lg shadow-indigo-500/20">
-                        <Rocket size={32} className="text-white" />
+                    <div className="flex items-center gap-6 p-8 bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent rounded-[2rem] border border-amber-500/20 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-[100px] rounded-full pointer-events-none" />
+                      <div className="p-5 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl shadow-xl shadow-orange-500/20 border border-white/10 z-10">
+                        <Crown size={40} className="text-white drop-shadow-md" />
                       </div>
-                      <div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-wider">ZippyType Pro</h3>
-                        <p className="text-xs font-medium text-indigo-300 mt-1">Unlock the full potential of your typing journey.</p>
+                      <div className="z-10">
+                        <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-orange-400 uppercase tracking-widest drop-shadow-sm">{EN.zippyTypePro}</h3>
+                        <p className="text-sm font-bold text-amber-500/80 mt-2 uppercase tracking-widest">{EN.ascendNextLevel}</p>
                       </div>
                     </div>
 
@@ -1667,30 +1668,30 @@ const App: React.FC = () => {
                       <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-2">
                         <div className="flex items-center gap-2 text-emerald-400">
                           <CheckCircle2 size={16} />
-                          <span className="text-xs font-bold uppercase tracking-wider">Unlimited AI Generation</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">{EN.moreAiGen}</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 pl-6">Generate infinite custom practice texts with Gemini Pro.</p>
+                        <p className="text-[10px] text-slate-500 pl-6">{EN.moreAiGenDesc}</p>
                       </div>
                       <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-2">
                         <div className="flex items-center gap-2 text-emerald-400">
                           <CheckCircle2 size={16} />
-                          <span className="text-xs font-bold uppercase tracking-wider">Advanced Analytics</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">{EN.advAnalytics}</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 pl-6">Deep dive into your typing patterns and neural adaptation.</p>
+                        <p className="text-[10px] text-slate-500 pl-6">{EN.advAnalyticsDesc}</p>
                       </div>
                       <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-2">
                         <div className="flex items-center gap-2 text-emerald-400">
                           <CheckCircle2 size={16} />
-                          <span className="text-xs font-bold uppercase tracking-wider">Custom Themes</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">{EN.customThemes}</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 pl-6">Access exclusive visual themes and sound packs.</p>
+                        <p className="text-[10px] text-slate-500 pl-6">{EN.customThemesDesc}</p>
                       </div>
                       <div className="p-4 bg-black/20 rounded-xl border border-white/5 space-y-2">
                         <div className="flex items-center gap-2 text-emerald-400">
                           <CheckCircle2 size={16} />
-                          <span className="text-xs font-bold uppercase tracking-wider">Priority Support</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">{EN.prioritySupport}</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 pl-6">Get help faster with dedicated support channels.</p>
+                        <p className="text-[10px] text-slate-500 pl-6">{EN.prioritySupportDesc}</p>
                       </div>
                     </div>
 
@@ -1698,23 +1699,23 @@ const App: React.FC = () => {
                       <div className="flex flex-col items-center gap-4 pt-4">
                         <div className="text-center">
                           <span className="text-3xl font-black text-white">$5.00</span>
-                          <span className="text-sm font-medium text-slate-500"> / month</span>
+                          <span className="text-sm font-medium text-slate-500"> {EN.month}</span>
                         </div>
                         <button 
                           onClick={handleSubscribe}
                           disabled={isSubscribing}
-                          className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-indigo-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-orange-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {isSubscribing ? (
                             <>
                               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              Processing...
+                              {EN.processing}
                             </>
                           ) : (
-                            "Upgrade to Pro"
+                            EN.upgradeToPro
                           )}
                         </button>
-                        <p className="text-[10px] text-slate-600">Secure payment via Stripe. Cancel anytime.</p>
+                        <p className="text-[10px] text-slate-600">{EN.securePayment}</p>
                       </div>
                     )}
 
@@ -1732,7 +1733,7 @@ const App: React.FC = () => {
                               type="text" 
                               placeholder="XXXX-XXXX-XXXX"
                               value={giftCardCode}
-                              onChange={(e) => setGiftCardCode(e.target.value.toUpperCase())}
+                              onChange={handleGiftCardInputChange}
                               className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xs outline-none focus:border-indigo-500 transition-all"
                             />
                             <button 
@@ -1788,7 +1789,7 @@ const App: React.FC = () => {
             )}
           </div>
         ) : currentView === AppView.HISTORY ? (
-          <HistoryView history={history} speedUnit={speedUnit} problemKeys={problemKeys} />
+          <HistoryView history={history} speedUnit={speedUnit} isPro={profile.is_pro || false} onUpgradeClick={() => setShowUpgradeModal(true)} />
         ) : currentView === AppView.TUTORIALS ? (
           <Tutorials />
         ) : currentView === AppView.PRIVACY ? (
@@ -1960,7 +1961,7 @@ const App: React.FC = () => {
                 <StatsCard label="Speed" value={`${currentWpmDisplay}`} icon={<Zap />} color={profile.accentColor} />
                 <div className="absolute top-2 right-2 text-[8px] font-black uppercase tracking-widest text-slate-600">{speedUnit.toUpperCase()}</div>
                 <StatsCard label="Precision" value={`${currentAccuracyDisplay}%`} icon={<Target />} color="emerald" />
-                <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col justify-center shadow-md"><p className="text-slate-500 text-[8px] font-black uppercase tracking-[0.3em] mb-1 leading-none">Adaptive Mode</p><div className="flex gap-2 min-h-[32px] items-center">{problemKeys.slice(0, 3).map(k => (<span key={k} className="px-2 py-1 bg-rose-500/20 text-rose-400 rounded text-[9px] font-black uppercase border border-rose-500/20">{k}</span>))}{problemKeys.length === 0 && <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Normal</span>}</div></div>
+                <div className="glass p-4 rounded-2xl border border-white/10 flex flex-col justify-center shadow-md"><p className="text-slate-500 text-[8px] font-black uppercase tracking-[0.3em] mb-1 leading-none">Adaptive Mode</p><div className="flex gap-2 min-h-[32px] items-center"><span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">Normal</span>}</div></div>
               </div>
 
               <div className="relative group mb-10">
@@ -2072,6 +2073,33 @@ const App: React.FC = () => {
         onClose={() => setShowSubscription(false)} 
       />
     )}
+
+      {redemptionResult && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-[#0f172a] border border-white/10 rounded-[2rem] p-8 shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <div className={`absolute top-0 left-0 right-0 h-1.5 rounded-t-[2rem] ${redemptionResult.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className={`p-4 rounded-2xl border ${redemptionResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'}`}>
+                {redemptionResult.success ? <CheckCircle2 size={32} /> : <AlertTriangle size={32} />}
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                  {redemptionResult.success ? 'Success!' : 'Redemption Failed'}
+                </h3>
+                <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                  {redemptionResult.message}
+                </p>
+              </div>
+              <button 
+                onClick={() => setRedemptionResult(null)}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-black rounded-xl text-[10px] uppercase tracking-widest transition-all border border-white/5"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">

@@ -18,6 +18,8 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://placeholder.supaba
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
+// supabaseAdmin is required for administrative tasks that the anon key cannot perform,
+// such as deleting users from auth.users or bypassing RLS for server-side database operations.
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 // Initialize Stripe with the provided test key
@@ -220,7 +222,7 @@ async function startServer() {
         const code = Math.random().toString(36).substring(2, 14).toUpperCase().match(/.{1,4}/g)?.join('-') || 'ZIPPY-GIFT';
         
         // Insert into Supabase
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('gift_cards')
           .insert({
             code,
@@ -231,7 +233,7 @@ async function startServer() {
           .single();
 
         if (error) throw error;
-        res.json({ code });
+        res.json({ code, months });
       } else {
         res.status(400).json({ error: 'Payment not successful or invalid' });
       }
