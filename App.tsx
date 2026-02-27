@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Leaderboard from './components/Leaderboard';
 import { 
   Trophy, Zap, Target, RotateCcw, Play, Rocket, Settings as SettingsIcon,
   Gamepad2, LogOut, X, Volume2, VolumeX, Github, Globe, User, EyeOff, Eye, 
@@ -1107,6 +1108,20 @@ const App: React.FC = () => {
       const result: TypingResult = { id: Date.now().toString(), date: new Date().toISOString(), wpm, accuracy, time: duration, errors, difficulty, mode: gameMode, textLength: currentText.length, errorMap, coachNote: note };
       await saveHistory(user.id, result);
       setHistory(prev => [result, ...prev].slice(0, 50));
+
+      // Update Leaderboard Score
+      const scoreIncrement = Math.max(0, currentText.length - errors);
+      if (scoreIncrement > 0) {
+        try {
+          await supabase.rpc('update_leaderboard_score', { 
+            p_user_id: user.id, 
+            p_username: profile.username, 
+            p_score_increment: scoreIncrement 
+          });
+        } catch (err) {
+          console.error("Failed to update leaderboard:", err);
+        }
+      }
     } else if (gameMode === GameMode.SOLO) {
       try { await recordIpSoloUsage(); setHasUsedSolo(true); } catch (err) {}
     }
@@ -1610,6 +1625,9 @@ const App: React.FC = () => {
               <button onClick={() => setCurrentView(AppView.SEARCH)} className={`p-3 rounded-xl transition-all ${currentView === AppView.SEARCH ? `bg-cyan-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Search">
                 <Search size={20} />
               </button>
+              <button onClick={() => setCurrentView(AppView.LEADERBOARD)} className={`p-3 rounded-xl transition-all ${currentView === AppView.LEADERBOARD ? `bg-amber-500 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Leaderboard">
+                <Trophy size={20} />
+              </button>
               <button onClick={() => checkRestricted(AppView.SETTINGS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.SETTINGS ? `bg-purple-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Settings">
                 <SettingsIcon size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
@@ -1625,6 +1643,14 @@ const App: React.FC = () => {
             {user ? (<button onClick={() => supabase.auth.signOut()} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-rose-400 transition-all shadow-md"><LogOut size={20} /></button>) : (<button onClick={() => setShowAuth(true)} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95">{EN.login}</button>)}
           </nav>
         </header>
+
+        {currentView === AppView.SEARCH && (
+          <ZippySearch />
+        )}
+
+        {currentView === AppView.LEADERBOARD && (
+          <Leaderboard currentUser={user} userProfile={profile} />
+        )}
 
         {currentView === AppView.PROFILE ? (
           <div className="glass rounded-[2rem] p-10 space-y-10 animate-in zoom-in-95 duration-300 border border-white/10 shadow-2xl">

@@ -42,6 +42,7 @@ export enum AppView {
   PRIVACY = 'privacy',
   REDIRECT = 'redirect',
   SEARCH = 'search',
+  LEADERBOARD = 'leaderboard',
   NOT_FOUND = 'not_found'
 }
 
