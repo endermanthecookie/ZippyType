@@ -350,6 +350,7 @@ const App: React.FC = () => {
   const requestCounter = useRef(0);
   const audioCtx = useRef<AudioContext | null>(null);
   const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const isEasterEggPlaying = useRef(false);
   const bgmSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const sfxGainRef = useRef<GainNode | null>(null);
@@ -1036,17 +1037,26 @@ const App: React.FC = () => {
         const wpm = duration > 0 ? (nextCorrectKeys / 5) / (duration / 60) : 0;
         
         if (wpm >= 22 && wpm <= 23) {
-          if (!easterEggTriggered) {
+          if (!easterEggTriggered && !isEasterEggPlaying.current) {
             if (bgmRef.current) bgmRef.current.pause();
             const audio = new Audio('https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/In-Game-Music/easteregg.mp3');
             audio.volume = sfxVolume;
-            audio.play().catch(e => console.error("Easter egg audio failed", e));
+            isEasterEggPlaying.current = true;
+            
             audio.onended = () => {
               if (bgmRef.current) bgmRef.current.play().catch(() => {});
+              isEasterEggPlaying.current = false;
             };
+            
+            audio.play().catch(e => {
+              console.error("Easter egg audio failed", e);
+              isEasterEggPlaying.current = false;
+              if (bgmRef.current) bgmRef.current.play().catch(() => {});
+            });
+            
             setEasterEggTriggered(true);
           }
-        } else if (wpm > 0) {
+        } else if (wpm > 0 && (wpm < 22 || wpm > 23)) {
           setEasterEggTriggered(false);
         }
       }
@@ -2303,7 +2313,7 @@ const App: React.FC = () => {
       </div>
       {/* <SpeedInsights />
       <Analytics /> */}
-      <footer className="w-full max-w-4xl py-6 flex justify-center">
+      <footer className="w-full max-w-4xl py-6 flex justify-center items-center gap-8">
         <a 
           href="/pandc"
           onClick={(e) => {
@@ -2314,6 +2324,14 @@ const App: React.FC = () => {
           className="text-[10px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-widest transition-colors"
         >
           Privacy Policy
+        </a>
+        <a 
+          href="https://discord.gg/mN56zE5q5g"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] font-bold text-[#5865F2] hover:text-[#4752C4] uppercase tracking-widest transition-colors flex items-center gap-2"
+        >
+           <span className="w-1.5 h-1.5 rounded-full bg-[#5865F2]"></span> Discord
         </a>
       </footer>
 

@@ -343,7 +343,9 @@ async function startServer() {
       }
 
       for (const tokenRow of tokens) {
-        const tokenValue = process.env[tokenRow.token_name];
+        // Try both the exact token name and the uppercase version (e.g. Github_tok_1 -> GITHUB_TOK_1)
+        const tokenValue = process.env[tokenRow.token_name] || process.env[tokenRow.token_name.toUpperCase()];
+        
         if (!tokenValue) {
           // If env var is missing, mark as out
           await supabase.from('github_tokens').update({ status: 'out' }).eq('id', tokenRow.id);
