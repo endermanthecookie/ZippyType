@@ -64,6 +64,40 @@ const SearchView: React.FC = () => {
             className="w-full h-full border-0"
             title="Google Search Results"
             sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            onLoad={(e) => {
+              try {
+                const iframe = e.target as HTMLIFrameElement;
+                const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (doc) {
+                  const script = doc.createElement('script');
+                  script.textContent = `
+                    (function() {
+                        // Scroll to bottom
+                        window.scrollTo(0, document.body.scrollHeight);
+                        
+                        // Google's "Accept All" button usually has the jsname "b3V6yc" 
+                        // or is the second primary button in that specific modal.
+                        var acceptBtn = document.querySelector('button[jsname="b3V6yc"]');
+                        
+                        if (acceptBtn) {
+                            acceptBtn.click();
+                        } else {
+                            // Fallback: Find the button that isn't "More options" or "Reject"
+                            // In the EU/Global layout, it's typically the last button in the footer
+                            var buttons = document.querySelectorAll('button');
+                            if (buttons.length >= 2) {
+                                buttons[buttons.length - 1].click(); 
+                            }
+                        }
+                    })();
+                  `;
+                  doc.body.appendChild(script);
+                }
+              } catch (err) {
+                // This will likely be hit due to cross-origin resource sharing (CORS) policies
+                console.warn("Cross-origin iframe access blocked by browser security policy. Cannot auto-click accept button.");
+              }
+            }}
           />
         </div>
       )}
