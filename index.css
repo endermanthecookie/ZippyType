@@ -51,6 +51,46 @@
   --card-bg: linear-gradient(135deg, rgba(236, 72, 153, 0.05) 0%, rgba(168, 85, 247, 0.05) 100%);
 }
 
+[data-theme="nordic"] {
+  --bg-deep: #0f172a;
+  --bg-surface: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --glass-bg: rgba(15, 23, 42, 0.8);
+  --glass-border: rgba(56, 189, 248, 0.2);
+  --card-bg: linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
+}
+
+[data-theme="sunset"] {
+  --bg-deep: #1c0c0c;
+  --bg-surface: #2d1616;
+  --text-main: #fff7ed;
+  --text-muted: #fb923c;
+  --glass-bg: rgba(28, 12, 12, 0.8);
+  --glass-border: rgba(251, 146, 60, 0.2);
+  --card-bg: linear-gradient(135deg, rgba(251, 146, 60, 0.05) 0%, rgba(249, 115, 22, 0.05) 100%);
+}
+
+[data-theme="forest"] {
+  --bg-deep: #061006;
+  --bg-surface: #0a1a0a;
+  --text-main: #f0fdf4;
+  --text-muted: #4ade80;
+  --glass-bg: rgba(6, 16, 6, 0.8);
+  --glass-border: rgba(74, 222, 128, 0.2);
+  --card-bg: linear-gradient(135deg, rgba(74, 222, 128, 0.05) 0%, rgba(34, 197, 94, 0.05) 100%);
+}
+
+[data-theme="ocean"] {
+  --bg-deep: #020617;
+  --bg-surface: #0f172a;
+  --text-main: #f0f9ff;
+  --text-muted: #38bdf8;
+  --glass-bg: rgba(2, 6, 23, 0.8);
+  --glass-border: rgba(56, 189, 248, 0.2);
+  --card-bg: linear-gradient(135deg, rgba(56, 189, 248, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
+}
+
 @theme {
   --font-sans: "ZippyFont", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;

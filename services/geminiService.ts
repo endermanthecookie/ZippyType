@@ -7,7 +7,8 @@ export const fetchTypingText = async (
   category: string = "General", 
   seed?: string,
   problemKeys: string[] = [],
-  textLength: 'short' | 'medium' | 'long' = 'medium'
+  textLength: 'short' | 'medium' | 'long' = 'medium',
+  language: string = 'en'
 ): Promise<string> => {
   const drillContext = problemKeys.length > 0 
     ? `IMPORTANT: This is a neuro-adaptive drill. The user is struggling with these keys: [${problemKeys.join(', ')}]. 
@@ -17,16 +18,18 @@ export const fetchTypingText = async (
   const theme = category !== "General" ? category : "fascinating trivia or life philosophy";
 
   let lengthConstraint = "";
-  if (textLength === 'short') lengthConstraint = "6-8 words";
-  else if (textLength === 'medium') lengthConstraint = "10-13 words";
-  else if (textLength === 'long') lengthConstraint = "20-25 words";
+  if (textLength === 'short') lengthConstraint = "exactly 6 to 8 words total";
+  else if (textLength === 'medium') lengthConstraint = "exactly 10 to 13 words total";
+  else if (textLength === 'long') lengthConstraint = "exactly 20 to 25 words total";
 
   const prompt = `Generate a single ${difficulty} level typing practice sentence about "${theme}". 
+  The language of the text MUST be: ${language}.
   ${seed ? `Base the content loosely on: ${seed}.` : ''}
   ${drillContext}
   
-  Constraints:
-  - Exact length required: ${lengthConstraint}
+  CRITICAL CONSTRAINTS:
+  - You MUST generate a sentence that is ${lengthConstraint}. 
+  - DO NOT exceed or fall short of this word count. Count the words carefully before returning.
   - Return ONLY the sentence text. No quotes. No extra labels.`;
 
   try {

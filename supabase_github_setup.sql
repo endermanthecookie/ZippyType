@@ -44,6 +44,8 @@ BEGIN
   -- Reset if it's a new day
   IF last_reset < CURRENT_DATE THEN
     current_usage := 0;
+    -- Update credits to 1 as requested
+    UPDATE public.user_credits SET credits = 1 WHERE user_id = user_id_arg;
   END IF;
 
   -- Check limit

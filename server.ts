@@ -245,7 +245,7 @@ async function startServer() {
 
   // Pro Text Generation Endpoint
   app.post('/api/generate-pro-text', async (req, res) => {
-    const { difficulty, topic, problemKeys } = req.body;
+    const { difficulty, topic, problemKeys, textLength, language } = req.body;
 
     try {
       // Get an active token from Supabase
@@ -270,16 +270,21 @@ async function startServer() {
         try {
           const client = new OpenAI({ baseURL: "https://models.inference.ai.azure.com", apiKey: tokenValue });
           
-          let prompt = `Generate a typing practice text for a ${difficulty} level typist. `;
-          if (topic) prompt += `The topic should be about: ${topic}. `;
+          let lengthConstraint = "exactly 10 to 13 words total";
+          if (textLength === 'short') lengthConstraint = "exactly 6 to 8 words total";
+          else if (textLength === 'long') lengthConstraint = "exactly 20 to 25 words total";
+
+          let prompt = `Generate a single ${difficulty} level typing practice sentence. `;
+          if (topic && topic !== "General") prompt += `The topic should be about: ${topic}. `;
+          if (language) prompt += `The language MUST be: ${language}. `;
           if (problemKeys && problemKeys.length > 0) {
-            prompt += `The text MUST frequently use these specific characters to help the user practice them: ${problemKeys.join(', ')}. `;
+            prompt += `The text MUST frequently use these specific characters: ${problemKeys.join(', ')}. `;
           }
-          prompt += `The text should be natural, engaging, and exactly 3-4 sentences long. Do not include any conversational filler, just the text itself.`;
+          prompt += `CRITICAL: The text MUST be ${lengthConstraint}. Count the words carefully. Return ONLY the text itself.`;
 
           const response = await client.chat.completions.create({
             messages: [
-              { role: "system", content: "You are a helpful assistant that generates typing practice texts." },
+              { role: "system", content: "You are a helpful assistant that generates typing practice texts. You follow length constraints perfectly." },
               { role: "user", content: prompt }
             ],
             model: "gpt-4o",

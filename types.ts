@@ -63,6 +63,12 @@ export interface UserProfile {
   accentColor: string;
   theme?: string;
   is_pro?: boolean;
+  customTheme?: {
+    bg: string;
+    text: string;
+    accent: string;
+    glass: string;
+  };
 }
 
 export interface PomodoroSettings {

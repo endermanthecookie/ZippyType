@@ -4,6 +4,7 @@ import React from 'react';
 interface TypingGuideProps {
   nextChar: string;
   accentColor: string;
+  onFingerClick?: () => void;
 }
 
 const fingerMapping: Record<string, { hand: 'L' | 'R'; finger: number }> = {
@@ -26,7 +27,7 @@ const fingerMapping: Record<string, { hand: 'L' | 'R'; finger: number }> = {
   ' ': { hand: 'R', finger: 0 }, // Thumb (Space)
 };
 
-const TypingGuide: React.FC<TypingGuideProps> = ({ nextChar, accentColor }) => {
+const TypingGuide: React.FC<TypingGuideProps> = ({ nextChar, accentColor, onFingerClick }) => {
   const char = nextChar?.toLowerCase() || '';
   const mapping = fingerMapping[char];
 
@@ -38,9 +39,15 @@ const TypingGuide: React.FC<TypingGuideProps> = ({ nextChar, accentColor }) => {
                          accentColor === 'amber' ? 'bg-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.8)]' :
                          accentColor === 'purple' ? 'bg-purple-400 shadow-[0_0_20px_rgba(192,132,252,0.8)]' :
                          'bg-indigo-400 shadow-[0_0_20px_rgba(129,140,248,0.8)]';
-      return `${colorClass} scale-125 -translate-y-2 z-10`;
+      return `${colorClass} scale-125 -translate-y-2 z-10 cursor-pointer`;
     }
     return 'bg-slate-800/50 opacity-20 border border-white/5';
+  };
+
+  const handleFingerClick = (hand: 'L' | 'R', finger: number) => {
+    if (mapping && mapping.hand === hand && mapping.finger === finger && onFingerClick) {
+      onFingerClick();
+    }
   };
 
   return (
@@ -49,10 +56,10 @@ const TypingGuide: React.FC<TypingGuideProps> = ({ nextChar, accentColor }) => {
         {/* Left Hand */}
         <div className="flex flex-col items-center gap-4">
           <div className="flex items-end gap-2 h-20">
-            <div className={`w-4 h-10 rounded-full transition-all duration-300 ${getFingerStyle('L', 1)}`} /> {/* Pinky */}
-            <div className={`w-4.5 h-14 rounded-full transition-all duration-300 ${getFingerStyle('L', 2)}`} /> {/* Ring */}
-            <div className={`w-4.5 h-17 rounded-full transition-all duration-300 ${getFingerStyle('L', 3)}`} /> {/* Middle */}
-            <div className={`w-4.5 h-13 rounded-full transition-all duration-300 ${getFingerStyle('L', 4)}`} /> {/* Index */}
+            <div onClick={() => handleFingerClick('L', 1)} className={`w-4 h-10 rounded-full transition-all duration-300 ${getFingerStyle('L', 1)}`} /> {/* Pinky */}
+            <div onClick={() => handleFingerClick('L', 2)} className={`w-4.5 h-14 rounded-full transition-all duration-300 ${getFingerStyle('L', 2)}`} /> {/* Ring */}
+            <div onClick={() => handleFingerClick('L', 3)} className={`w-4.5 h-17 rounded-full transition-all duration-300 ${getFingerStyle('L', 3)}`} /> {/* Middle */}
+            <div onClick={() => handleFingerClick('L', 4)} className={`w-4.5 h-13 rounded-full transition-all duration-300 ${getFingerStyle('L', 4)}`} /> {/* Index */}
             <div className="w-8 h-8 rounded-full bg-slate-900 border border-white/5 mt-4 self-center" /> {/* Thumb */}
           </div>
           <span className="text-[10px] font-black text-slate-500 tracking-[0.4em] uppercase">Left Tactical</span>
@@ -61,11 +68,11 @@ const TypingGuide: React.FC<TypingGuideProps> = ({ nextChar, accentColor }) => {
         {/* Right Hand */}
         <div className="flex flex-col items-center gap-4">
           <div className="flex items-end gap-2 h-20">
-            <div className={`w-8 h-8 rounded-full transition-all duration-300 mt-4 self-center ${getFingerStyle('R', 0)}`} /> {/* Thumb Space */}
-            <div className={`w-4.5 h-13 rounded-full transition-all duration-300 ${getFingerStyle('R', 1)}`} /> {/* Index */}
-            <div className={`w-4.5 h-17 rounded-full transition-all duration-300 ${getFingerStyle('R', 2)}`} /> {/* Middle */}
-            <div className={`w-4.5 h-14 rounded-full transition-all duration-300 ${getFingerStyle('R', 3)}`} /> {/* Ring */}
-            <div className={`w-4 h-10 rounded-full transition-all duration-300 ${getFingerStyle('R', 4)}`} /> {/* Pinky */}
+            <div onClick={() => handleFingerClick('R', 0)} className={`w-8 h-8 rounded-full transition-all duration-300 mt-4 self-center ${getFingerStyle('R', 0)}`} /> {/* Thumb Space */}
+            <div onClick={() => handleFingerClick('R', 1)} className={`w-4.5 h-13 rounded-full transition-all duration-300 ${getFingerStyle('R', 1)}`} /> {/* Index */}
+            <div onClick={() => handleFingerClick('R', 2)} className={`w-4.5 h-17 rounded-full transition-all duration-300 ${getFingerStyle('R', 2)}`} /> {/* Middle */}
+            <div onClick={() => handleFingerClick('R', 3)} className={`w-4.5 h-14 rounded-full transition-all duration-300 ${getFingerStyle('R', 3)}`} /> {/* Ring */}
+            <div onClick={() => handleFingerClick('R', 4)} className={`w-4 h-10 rounded-full transition-all duration-300 ${getFingerStyle('R', 4)}`} /> {/* Pinky */}
           </div>
           <span className="text-[10px] font-black text-slate-500 tracking-[0.4em] uppercase">Right Tactical</span>
         </div>

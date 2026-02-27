@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).end('Method Not Allowed');
   }
 
-  const { difficulty, topic, problemKeys, textLength = 'medium' } = req.body;
+  const { difficulty, topic, problemKeys, textLength = 'medium', language = 'en' } = req.body;
 
   try {
     // Get an active token from Supabase
@@ -28,9 +28,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let lengthConstraint = "";
-    if (textLength === 'short') lengthConstraint = "6-8 words";
-    else if (textLength === 'medium') lengthConstraint = "10-13 words";
-    else if (textLength === 'long') lengthConstraint = "20-25 words";
+    if (textLength === 'short') lengthConstraint = "exactly 6 to 8 words total";
+    else if (textLength === 'medium') lengthConstraint = "exactly 10 to 13 words total";
+    else if (textLength === 'long') lengthConstraint = "exactly 20 to 25 words total";
 
     for (const tokenRow of tokens) {
       // The DB has 'Github_tok_1', but Vercel env vars might be 'GITHUB_TOKEN_1' or 'Github_tok_1'
@@ -47,11 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const client = new OpenAI({ baseURL: "https://models.inference.ai.azure.com", apiKey: tokenValue });
         
         let prompt = `Generate a typing practice text for a ${difficulty} level typist. `;
+        prompt += `The language of the text MUST be: ${language}. `;
         if (topic) prompt += `The topic should be about: ${topic}. `;
         if (problemKeys && problemKeys.length > 0) {
           prompt += `The text MUST frequently use these specific characters to help the user practice them: ${problemKeys.join(', ')}. `;
         }
-        prompt += `The text should be natural, engaging, and exactly ${lengthConstraint} long. Do not include any conversational filler, just the text itself.`;
+        prompt += `CRITICAL CONSTRAINT: You MUST generate a sentence that is ${lengthConstraint}. Count the words carefully. Do not include any conversational filler, just the text itself.`;
 
         const response = await client.chat.completions.create({
           messages: [

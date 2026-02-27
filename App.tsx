@@ -185,6 +185,8 @@ const App: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [user, setUser] = useState<any>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [musicVolume, setMusicVolume] = useState(() => Number(localStorage.getItem('music_volume') || '0.15'));
+  const [sfxVolume, setSfxVolume] = useState(() => Number(localStorage.getItem('sfx_volume') || '0.8'));
   const [isZen, setIsZen] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
   const [hasUsedSolo, setHasUsedSolo] = useState<boolean | null>(null);
@@ -192,6 +194,13 @@ const App: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const scrollToCurrentChar = () => {
+    const el = document.getElementById('current-char');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
 
   const [profile, setProfile] = useState<UserProfile>(() => {
     try {
@@ -240,12 +249,29 @@ const App: React.FC = () => {
 
   // Apply theme
   useEffect(() => {
-    if (profile.theme) {
+    if (profile.theme === 'custom' && profile.customTheme) {
+      document.documentElement.setAttribute('data-theme', 'custom');
+      document.documentElement.style.setProperty('--bg-deep', profile.customTheme.bg);
+      document.documentElement.style.setProperty('--bg-surface', profile.customTheme.bg);
+      document.documentElement.style.setProperty('--text-main', profile.customTheme.text);
+      document.documentElement.style.setProperty('--accent-primary', profile.customTheme.accent);
+      document.documentElement.style.setProperty('--glass-bg', profile.customTheme.glass);
+    } else if (profile.theme) {
       document.documentElement.setAttribute('data-theme', profile.theme);
+      document.documentElement.style.removeProperty('--bg-deep');
+      document.documentElement.style.removeProperty('--bg-surface');
+      document.documentElement.style.removeProperty('--text-main');
+      document.documentElement.style.removeProperty('--accent-primary');
+      document.documentElement.style.removeProperty('--glass-bg');
     } else {
       document.documentElement.removeAttribute('data-theme');
+      document.documentElement.style.removeProperty('--bg-deep');
+      document.documentElement.style.removeProperty('--bg-surface');
+      document.documentElement.style.removeProperty('--text-main');
+      document.documentElement.style.removeProperty('--accent-primary');
+      document.documentElement.style.removeProperty('--glass-bg');
     }
-  }, [profile.theme]);
+  }, [profile.theme, profile.customTheme]);
 
   // Font loading log
   useEffect(() => {
@@ -314,17 +340,142 @@ const App: React.FC = () => {
   const [joinRoomId, setJoinRoomId] = useState("");
   const [isShaking, setIsShaking] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [easterEggTriggered, setEasterEggTriggered] = useState(false);
   const [roomStatus, setRoomStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const channelRef = useRef<any>(null);
+
+  useEffect(() => {
+    const wpm = elapsedTime > 0 ? (correctKeys / 5) / (elapsedTime / 60) : 0;
+    if (wpm >= 22 && wpm <= 23) {
+      if (!easterEggTriggered) {
+        const audio = new Audio('https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/In-Game-Music/easteregg.mp3');
+        audio.play().catch(e => console.error("Easter egg audio failed", e));
+        setEasterEggTriggered(true);
+      }
+    } else if (wpm > 0) {
+      // Reset if they leave the range, so it can trigger again if they re-enter
+      // But only if they are actually typing (wpm > 0)
+      setEasterEggTriggered(false);
+    }
+  }, [correctKeys, elapsedTime, easterEggTriggered]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
   const typewriterRef = useRef<number | null>(null);
   const requestCounter = useRef(0);
   const audioCtx = useRef<AudioContext | null>(null);
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
+  const bgmSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const compressorRef = useRef<DynamicsCompressorNode | null>(null);
+  const sfxGainRef = useRef<GainNode | null>(null);
+  const bgmGainRef = useRef<GainNode | null>(null);
+  const currentSongIndexRef = useRef<number>(0);
   const saveTimeoutRef = useRef<number | null>(null);
 
+  const songs = [
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Hyperdrive_Velocity.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL0h5cGVyZHJpdmVfVmVsb2NpdHkubXAzIiwiaWF0IjoxNzcyMTg3NjUyLCJleHAiOjMxNTUzNDA2NTE2NTJ9.VX-pPcSMJiyIZQY0tJp3ptupYrluH-DtsEbKmT62nng",
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Pixelated_Fury.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL1BpeGVsYXRlZF9GdXJ5Lm1wMyIsImlhdCI6MTc3MjE4NzY3NCwiZXhwIjozMTU1MzQwNjUxNjc0fQ.O3WYKqiOPgr5nJpDYxMbVUSG-xZCCIRv7RBrV8hxszQ",
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Pixelated_Power_Up.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL1BpeGVsYXRlZF9Qb3dlcl9VcC5tcDMiLCJpYXQiOjE3NzIxODc2OTAsImV4cCI6MzE1NTM0MDY1MTY5MH0.w9y4XwjprIOnKdI7mEv_L_E2LOPMOHh2qUCVv5Cu1zE",
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Quantum_Cascade.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL1F1YW50dW1fQ2FzY2FkZS5tcDMiLCJpYXQiOjE3NzIxODc3MDcsImV4cCI6MzE1NTM0MDY1MTcwN30.krCMCI4j9y26MFLpRxPjEBcy62aqszuKBQBQgyXyugM",
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Quantum_Leap_Citadel.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL1F1YW50dW1fTGVhcF9DaXRhZGVsLm1wMyIsImlhdCI6MTc3MjE4NzcyMywiZXhwIjozMTU1MzQwNjUxNzIzfQ.QIFxUWlXylIgysBvEcIcqITEcARMoCx0kpRwJpqzwls",
+    "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Quantum_Surge.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL1F1YW50dW1fU3VyZ2UubXAzIiwiaWF0IjoxNzcyMTg3NzQwLCJleHAiOjMxNTUzNDA2NTE3NDB9.jyIbPZgZZWen1noxUCBPMuEqKOUwqlnQMrb2Ytb3vJs"
+  ];
+
+  const initAudio = () => {
+    if (!audioCtx.current) {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtx.current = ctx;
+
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -30;
+      comp.knee.value = 10;
+      comp.ratio.value = 12;
+      comp.attack.value = 0.01;
+      comp.release.value = 0.25;
+      comp.connect(ctx.destination);
+      compressorRef.current = comp;
+
+      const sfxGain = ctx.createGain();
+      sfxGain.gain.value = 0.8;
+      sfxGain.connect(comp);
+      sfxGainRef.current = sfxGain;
+
+      const bgmGain = ctx.createGain();
+      bgmGain.gain.value = 0.15;
+      bgmGain.connect(comp);
+      bgmGainRef.current = bgmGain;
+
+      const audio = new Audio();
+      audio.crossOrigin = "anonymous";
+      audio.loop = false;
+      bgmRef.current = audio;
+      
+      const source = ctx.createMediaElementSource(audio);
+      source.connect(bgmGain);
+      bgmSourceRef.current = source;
+
+      audio.addEventListener('ended', () => {
+        console.log("Song ended, playing next...");
+        playNextSong();
+      });
+    }
+    if (audioCtx.current.state === 'suspended') {
+      audioCtx.current.resume();
+    }
+  };
+
+  const playNextSong = () => {
+    if (!bgmRef.current || !soundEnabled) return;
+    const nextIndex = (currentSongIndexRef.current + 1) % songs.length;
+    currentSongIndexRef.current = nextIndex;
+    bgmRef.current.src = songs[nextIndex];
+    bgmRef.current.load();
+    bgmRef.current.play().catch(e => console.warn("BGM play failed:", e));
+  };
+
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      initAudio();
+      if (bgmRef.current && (bgmRef.current.paused || bgmRef.current.src === "") && soundEnabled) {
+        playNextSong();
+      }
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    if (bgmRef.current) {
+      if (soundEnabled) {
+        if (bgmRef.current.paused && bgmRef.current.src) {
+          bgmRef.current.play().catch(() => {});
+        }
+      } else {
+        bgmRef.current.pause();
+      }
+    }
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    if (bgmGainRef.current) {
+      bgmGainRef.current.gain.value = musicVolume;
+    }
+    localStorage.setItem('music_volume', musicVolume.toString());
+  }, [musicVolume]);
+
+  useEffect(() => {
+    if (sfxGainRef.current) {
+      sfxGainRef.current.gain.value = sfxVolume;
+    }
+    localStorage.setItem('sfx_volume', sfxVolume.toString());
+  }, [sfxVolume]);
   useEffect(() => {
     if (window.location.pathname === '/pandc') {
       setCurrentView(AppView.PRIVACY);
@@ -692,7 +843,7 @@ const App: React.FC = () => {
       
       const generator = async () => {
         if (provider === AIProvider.GEMINI) {
-          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength);
+          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength, currentLang);
         } else {
           // If user is Pro, always use the server-side generation for GitHub provider
           // This allows them to use GPT-4o without providing their own token
@@ -704,7 +855,8 @@ const App: React.FC = () => {
                 body: JSON.stringify({ 
                   difficulty: customDiff || difficulty, 
                   topic: seed || "General",
-                  textLength
+                  textLength,
+                  language: currentLang
                 })
               });
               if (!res.ok) {
@@ -715,7 +867,7 @@ const App: React.FC = () => {
               return data.text;
             } catch (err) {
               console.warn("Pro generation failed, falling back to Gemini:", err);
-              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength);
+              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength, currentLang);
             }
           }
 
@@ -724,9 +876,9 @@ const App: React.FC = () => {
               setShowGithubHelp(true);
               throw new Error("GitHub token required for free users");
             }
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength, currentLang);
           } else {
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength, currentLang);
           }
         }
       };
@@ -815,7 +967,7 @@ const App: React.FC = () => {
         // 3. Generate Text
         let text = "";
         if (provider === AIProvider.GEMINI) {
-          text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength);
+          text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength, currentLang);
         } else {
           if (profile.is_pro) {
             try {
@@ -825,7 +977,8 @@ const App: React.FC = () => {
                 body: JSON.stringify({ 
                   difficulty, 
                   topic: customTopic || "General",
-                  textLength
+                  textLength,
+                  language: currentLang
                 })
               });
               if (!res.ok) {
@@ -836,16 +989,16 @@ const App: React.FC = () => {
               text = data.text;
             } catch (err) {
               console.warn("Pro generation failed, falling back to Gemini:", err);
-              text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength);
+              text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength, currentLang);
             }
           } else if (customTopic) {
             if (!githubToken) {
               setShowGithubHelp(true);
               throw new Error("GitHub token required for free users");
             }
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength);
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength, currentLang);
           } else {
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength);
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength, currentLang);
           }
         }
         const normalized = normalizeText(text.trim());
@@ -1051,7 +1204,7 @@ const App: React.FC = () => {
     const avgAcc = history.length > 0 ? history.reduce((acc, curr) => acc + curr.accuracy, 0) / history.length : 100;
     // Fix: Renamed local totalKeys to allKeys to avoid shadowing the state variable and resolve potential type errors in arithmetic operations on line 396.
     const allKeys = history.reduce((acc, curr) => acc + (curr.textLength || 0), 0);
-    const stats: ZippyStats = { level: Math.floor(allKeys / 1000) + 1, topWPM: maxWpm, accuracy: avgAcc, totalKeystrokes: allKeys };
+    const stats: ZippyStats = { level: Math.floor(allKeys / 1000) + 1, topWPM: maxWpm, accuracy: avgAcc, totalKeystrokes: allKeys, problemKeys: problemKeys };
     const blob = saveZippyData(stats);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1084,13 +1237,21 @@ const App: React.FC = () => {
   const playSound = (type: 'correct' | 'error' | 'finish' | 'click') => {
     if (!soundEnabled) return;
     try {
-      if (!audioCtx.current) audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const ctx = audioCtx.current;
+      initAudio();
+      const ctx = audioCtx.current!;
       if (ctx.state === 'suspended') ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
+      osc.connect(gain); gain.connect(sfxGainRef.current || ctx.destination);
       const now = ctx.currentTime;
+
+      if (bgmGainRef.current) {
+        const bgmGain = bgmGainRef.current.gain;
+        bgmGain.cancelScheduledValues(now);
+        bgmGain.setValueAtTime(bgmGain.value, now);
+        bgmGain.linearRampToValueAtTime(0.12, now + 0.05);
+        bgmGain.linearRampToValueAtTime(0.15, now + 0.3);
+      }
 
       if (soundProfile === SoundProfile.MECHANICAL) {
         if (type === 'click' || type === 'correct') {
@@ -1407,7 +1568,7 @@ const App: React.FC = () => {
               />
             </div>
             <div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic">
+              <h1 className="text-2xl md:text-3xl font-black tracking-[-0.08em] leading-none mb-1 flex flex-col italic">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-purple-500 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">ZIPPYTYPE</span>
               </h1>
               <div className="flex items-center gap-2">
@@ -1491,7 +1652,12 @@ const App: React.FC = () => {
                       { id: '', name: 'Default Dark' },
                       { id: 'light', name: 'Clean Light' },
                       { id: 'midnight', name: 'Midnight OLED' },
-                      { id: 'cyberpunk', name: 'Cyberpunk' }
+                      { id: 'cyberpunk', name: 'Cyberpunk' },
+                      { id: 'nordic', name: 'Nordic Frost' },
+                      { id: 'sunset', name: 'Sunset Glow' },
+                      { id: 'forest', name: 'Emerald Forest' },
+                      { id: 'ocean', name: 'Deep Sea' },
+                      { id: 'custom', name: 'Custom Theme' }
                     ].map(t => (
                       <button
                         key={t.id}
@@ -1518,6 +1684,51 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 </div>
+                {profile.theme === 'custom' && profile.is_pro && (
+                  <div className="p-6 glass border border-white/10 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-4">
+                    <h3 className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                      <SettingsIcon size={14} className="text-indigo-400" /> Custom Theme Editor
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Background</label>
+                        <input 
+                          type="color" 
+                          value={profile.customTheme?.bg || '#02040a'} 
+                          onChange={e => setProfile({
+                            ...profile, 
+                            customTheme: { ...(profile.customTheme || { bg: '#02040a', text: '#e2e8f0', accent: '99, 102, 241', glass: 'rgba(10, 12, 20, 0.7)' }), bg: e.target.value }
+                          })}
+                          className="w-full h-10 bg-black/40 border border-white/10 rounded-lg cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Text Color</label>
+                        <input 
+                          type="color" 
+                          value={profile.customTheme?.text || '#e2e8f0'} 
+                          onChange={e => setProfile({
+                            ...profile, 
+                            customTheme: { ...(profile.customTheme || { bg: '#02040a', text: '#e2e8f0', accent: '99, 102, 241', glass: 'rgba(10, 12, 20, 0.7)' }), text: e.target.value }
+                          })}
+                          className="w-full h-10 bg-black/40 border border-white/10 rounded-lg cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-2 col-span-2">
+                        <label className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Accent RGB (e.g. 99, 102, 241)</label>
+                        <input 
+                          type="text" 
+                          value={profile.customTheme?.accent || '99, 102, 241'} 
+                          onChange={e => setProfile({
+                            ...profile, 
+                            customTheme: { ...(profile.customTheme || { bg: '#02040a', text: '#e2e8f0', accent: '99, 102, 241', glass: 'rgba(10, 12, 20, 0.7)' }), accent: e.target.value }
+                          })}
+                          className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white font-bold text-xs focus:border-indigo-500 transition-all outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-y-5"><label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em]">Avatar</label><div className="grid grid-cols-5 gap-4">{AVATARS.map(v => (<button key={v} onClick={() => setProfile({...profile, avatar: v})} className={`text-2xl p-4 rounded-xl border-2 transition-all hover:scale-110 ${profile.avatar === v ? 'border-emerald-500 bg-emerald-500/10 shadow-xl shadow-emerald-500/10' : 'border-white/5 bg-black/50 opacity-30 hover:opacity-100'}`}>{v}</button>))}</div></div>
             </div>
@@ -1647,6 +1858,10 @@ const App: React.FC = () => {
                     setSoundProfile={setSoundProfile}
                     keyboardLayout={keyboardLayout}
                     setKeyboardLayout={setKeyboardLayout}
+                    musicVolume={musicVolume}
+                    setMusicVolume={setMusicVolume}
+                    sfxVolume={sfxVolume}
+                    setSfxVolume={setSfxVolume}
                   />
                 )}
 
@@ -1828,7 +2043,7 @@ const App: React.FC = () => {
             )}
           </div>
         ) : currentView === AppView.HISTORY ? (
-          <HistoryView history={history} speedUnit={speedUnit} problemKeys={problemKeys} isPro={profile.is_pro || false} onUpgradeClick={() => setShowUpgradeModal(true)} />
+          <HistoryView history={history} speedUnit={speedUnit} problemKeys={problemKeys} isPro={profile.is_pro || false} onUpgradeClick={() => setShowProModal(true)} />
         ) : currentView === AppView.SEARCH ? (
           <SearchView />
         ) : currentView === AppView.TUTORIALS ? (
@@ -2042,6 +2257,7 @@ const App: React.FC = () => {
                         return (
                           <motion.span 
                             key={i} 
+                            id={isCurrent ? 'current-char' : undefined}
                             initial={false}
                             animate={isTyped ? { 
                               color: isCorrect ? '#10b981' : '#f43f5e',
@@ -2062,7 +2278,7 @@ const App: React.FC = () => {
                 )}
               </div>
 
-              {showGuide && isActive && !loading && !isTypingOut && <div className="mb-10 animate-in slide-in-from-top-4 duration-500"><TypingGuide nextChar={currentText[userInput.length]} accentColor={profile.accentColor} /></div>}
+              {showGuide && isActive && !loading && !isTypingOut && <div className="mb-10 animate-in slide-in-from-top-4 duration-500"><TypingGuide nextChar={currentText[userInput.length]} accentColor={profile.accentColor} onFingerClick={scrollToCurrentChar} /></div>}
 
               <div className="mt-4 flex flex-col items-center">
                 <button onClick={isActive ? () => { setIsActive(false); setCurrentText(""); } : startGame} className={`group relative px-12 py-5 rounded-[1.5rem] font-black uppercase tracking-[0.4em] text-[11px] transition-all shadow-3xl overflow-hidden hover:scale-105 active:scale-95 ${isActive ? 'bg-white/5 text-slate-500 border border-white/10' : `text-white bg-gradient-to-r ${ACCENT_COLORS[profile.accentColor as keyof typeof ACCENT_COLORS]} ring-4 ring-indigo-500/20 shadow-[0_10px_40px_-10px_rgba(var(--accent-primary),0.5)]`}`}>

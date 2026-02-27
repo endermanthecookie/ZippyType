@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, Layout, Globe, X } from 'lucide-react';
+import { Volume2, Layout, Globe, X, Sparkles } from 'lucide-react';
 import { SoundProfile, KeyboardLayout } from '../../types';
 import { useTranslation } from '../../src/LanguageContext';
 
@@ -8,36 +8,30 @@ interface GeneralSettingsProps {
   setSoundProfile: (p: SoundProfile) => void;
   keyboardLayout: KeyboardLayout;
   setKeyboardLayout: (l: KeyboardLayout) => void;
+  musicVolume: number;
+  setMusicVolume: (v: number) => void;
+  sfxVolume: number;
+  setSfxVolume: (v: number) => void;
 }
 
 const languages = [
-  { code: 'en', label: 'English' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
+  { code: 'english', label: 'English' },
   { code: 'de', label: 'Deutsch' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'pt', label: 'Português' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'zh', label: '中文' },
-  { code: 'ja', label: '日本語' },
   { code: 'ko', label: '한국어' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'tr', label: 'Türkçe' },
   { code: 'nl', label: 'Nederlands' },
-  { code: 'pl', label: 'Polski' },
-  { code: 'sv', label: 'Svenska' },
   { code: 'da', label: 'Dansk' },
-  { code: 'fi', label: 'Suomi' },
-  { code: 'no', label: 'Norsk' },
-  { code: 'el', label: 'Ελληνικά' }
+  { code: 'es', label: 'Español' }
 ];
 
 const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   soundProfile,
   setSoundProfile,
   keyboardLayout,
-  setKeyboardLayout
+  setKeyboardLayout,
+  musicVolume,
+  setMusicVolume,
+  sfxVolume,
+  setSfxVolume
 }) => {
   const { currentLang, setLanguage, loading } = useTranslation();
   const [showLangModal, setShowLangModal] = useState(false);
@@ -57,6 +51,46 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           <span>{currentLangLabel}</span>
           <span className="text-[10px] text-cyan-400 uppercase tracking-widest">Change</span>
         </button>
+      </div>
+
+      <div className="p-6 glass border border-white/10 rounded-2xl space-y-6">
+        <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+          <Volume2 size={14} className="text-indigo-400" /> Volume Control
+        </h3>
+        
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Music Volume</span>
+              <span className="text-[10px] font-mono text-indigo-400">{Math.round(musicVolume * 100)}%</span>
+            </div>
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.01" 
+              value={musicVolume}
+              onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SFX Volume</span>
+              <span className="text-[10px] font-mono text-indigo-400">{Math.round(sfxVolume * 100)}%</span>
+            </div>
+            <input 
+              type="range" 
+              min="0" 
+              max="1" 
+              step="0.01" 
+              value={sfxVolume}
+              onChange={(e) => setSfxVolume(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
@@ -91,6 +125,16 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-2">
+        <div className="flex items-center gap-2 text-indigo-400">
+          <Sparkles size={14} />
+          <span className="text-[10px] font-black uppercase tracking-widest">Secret Tip</span>
+        </div>
+        <p className="text-xs text-slate-400 italic">
+          “Type at 22 WPM for this one time. You will get something funny!“
+        </p>
       </div>
 
       {showLangModal && (

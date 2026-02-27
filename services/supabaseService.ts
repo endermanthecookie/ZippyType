@@ -10,6 +10,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // --- Encryption Helpers ---
 const ENCRYPTION_PREFIX = 'ENC:';
 
+async function hashIP(ip: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(ip);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
 async function getEncryptionKey(userId: string): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const baseKey = await crypto.subtle.importKey(
@@ -159,7 +167,8 @@ export const linkUserToIp = async (userId: string) => {
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     const { ip } = await res.json();
-    await supabase.from('ip_sessions').upsert({ ip_address: ip, user_id: userId });
+    const hashedIp = await hashIP(ip);
+    await supabase.from('ip_sessions').upsert({ ip_address: hashedIp, user_id: userId });
   } catch (e) {
     console.error('Failed to link IP to user', e);
   }
@@ -169,7 +178,8 @@ export const getUserIdByIp = async (): Promise<string | null> => {
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     const { ip } = await res.json();
-    const { data } = await supabase.from('ip_sessions').select('user_id').eq('ip_address', ip).maybeSingle();
+    const hashedIp = await hashIP(ip);
+    const { data } = await supabase.from('ip_sessions').select('user_id').eq('ip_address', hashedIp).maybeSingle();
     return data?.user_id || null;
   } catch {
     return null;
@@ -180,7 +190,8 @@ export const checkIpSoloUsage = async (): Promise<boolean> => {
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     const { ip } = await res.json();
-    const { data } = await supabase.from('anonymous_runs').select('ip_address').eq('ip_address', ip).maybeSingle();
+    const hashedIp = await hashIP(ip);
+    const { data } = await supabase.from('anonymous_runs').select('ip_address').eq('ip_address', hashedIp).maybeSingle();
     return !!data;
   } catch {
     return false;
@@ -191,7 +202,8 @@ export const recordIpSoloUsage = async () => {
   try {
     const res = await fetch('https://api.ipify.org?format=json');
     const { ip } = await res.json();
-    await supabase.from('anonymous_runs').upsert({ ip_address: ip });
+    const hashedIp = await hashIP(ip);
+    await supabase.from('anonymous_runs').upsert({ ip_address: hashedIp });
   } catch (e) {
     console.error('Failed to record IP usage', e);
   }
@@ -199,16 +211,16 @@ export const recordIpSoloUsage = async () => {
 
 export const incrementUsage = async (userId: string | null, isPro: boolean, isCustomTopic: boolean): Promise<number> => {
   try {
-    let ip = null;
+    let hashedIp = null;
     if (!userId) {
       const res = await fetch('https://api.ipify.org?format=json');
       const data = await res.json();
-      ip = data.ip;
+      hashedIp = await hashIP(data.ip);
     }
     
     const { data, error } = await supabase.rpc('increment_usage', {
       user_id_arg: userId,
-      ip_address_arg: ip,
+      ip_address_arg: hashedIp,
       is_pro_arg: isPro,
       is_custom_topic_arg: isCustomTopic
     });
