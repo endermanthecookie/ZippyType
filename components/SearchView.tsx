@@ -1,71 +1,45 @@
 import React, { useState } from 'react';
-import { Search, Loader2, ExternalLink, Sparkles } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
+import { Search, Loader2 } from 'lucide-react';
 
 const SearchView: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<string | null>(null);
-  const [links, setLinks] = useState<any[]>([]);
+  const [searchUrl, setSearchUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
-    setError(null);
-    setResults(null);
-    setLinks([]);
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Search the web for real-time information about: ${query}. Focus on providing helpful, accurate, and concise information. If it's related to typing, keyboards, or productivity, provide extra detail.`,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      setResults(response.text || "No results found.");
-
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        const extractedLinks = chunks
-          .filter((chunk: any) => chunk.web?.uri && chunk.web?.title)
-          .map((chunk: any) => ({
-            uri: chunk.web.uri,
-            title: chunk.web.title
-          }));
-        
-        // Remove duplicates
-        const uniqueLinks = Array.from(new Map(extractedLinks.map((item: any) => [item.uri, item])).values());
-        setLinks(uniqueLinks);
-      }
-    } catch (err: any) {
-      console.error("Search error:", err);
-      setError(err.message || "An error occurred while searching.");
-    } finally {
+    
+    // Encode the query according to standard URL encoding
+    const encodedQuery = encodeURIComponent(query.trim());
+    
+    // Using igu=1 allows Google Search to be embedded in an iframe in some cases,
+    // but we stick to the requested format as closely as possible.
+    setSearchUrl(`https://www.google.com/search?igu=1&q=${encodedQuery}`);
+    
+    // Simulate a short loading state for UX
+    setTimeout(() => {
       setLoading(false);
-    }
+    }, 500);
   };
 
   return (
-    <div className="glass rounded-[2rem] p-10 space-y-10 animate-in zoom-in-95 duration-300 border border-white/10 shadow-2xl">
-      <div className="flex items-center gap-3">
+    <div className="glass rounded-[2rem] p-10 space-y-10 animate-in zoom-in-95 duration-300 border border-white/10 shadow-2xl flex flex-col h-[80vh]">
+      <div className="flex items-center gap-3 shrink-0">
         <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl">
           <Search size={22} />
         </div>
         <h2 className="text-base font-black text-white uppercase tracking-tighter">Zippy Search</h2>
       </div>
 
-      <form onSubmit={handleSearch} className="relative">
+      <form onSubmit={handleSearch} className="relative shrink-0">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask about typing techniques, keyboard switches, or anything else..."
+          placeholder="Search Google..."
           className="w-full bg-black/50 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white font-bold text-sm focus:border-cyan-500 transition-all outline-none shadow-inner"
         />
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
@@ -78,47 +52,19 @@ const SearchView: React.FC = () => {
         </button>
       </form>
 
-      {error && (
-        <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm font-medium">
-          {error}
-        </div>
-      )}
-
-      {results && (
-        <div className="space-y-6">
-          <div className="p-6 bg-black/40 border border-white/5 rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles size={16} className="text-cyan-400" />
-              <h3 className="text-[10px] font-black text-cyan-400 uppercase tracking-widest">AI Summary</h3>
-            </div>
-            <div className="prose prose-invert prose-sm max-w-none">
-              {results.split('\n').map((line, i) => (
-                <p key={i} className="text-sm text-slate-300 leading-relaxed mb-2">{line}</p>
-              ))}
-            </div>
-          </div>
-
-          {links.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sources</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {links.map((link, i) => (
-                  <a
-                    key={i}
-                    href={link.uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition-all group"
-                  >
-                    <span className="text-xs font-medium text-slate-300 truncate mr-4">
-                      {link.title}
-                    </span>
-                    <ExternalLink size={14} className="text-slate-500 group-hover:text-cyan-400 flex-shrink-0" />
-                  </a>
-                ))}
-              </div>
+      {searchUrl && (
+        <div className="flex-1 w-full bg-white rounded-2xl overflow-hidden border border-white/10 relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">
+              <Loader2 size={32} className="animate-spin text-cyan-600" />
             </div>
           )}
+          <iframe 
+            src={searchUrl} 
+            className="w-full h-full border-0"
+            title="Google Search Results"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+          />
         </div>
       )}
     </div>

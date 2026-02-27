@@ -1707,29 +1707,29 @@ const App: React.FC = () => {
                       </div>
                     </div>
 
-                    {!profile.is_pro && (
-                      <div className="flex flex-col items-center gap-4 pt-4">
-                        <div className="text-center">
-                          <span className="text-3xl font-black text-white">$5.00</span>
-                          <span className="text-sm font-medium text-slate-500"> {EN.month}</span>
-                        </div>
-                        <button 
-                          onClick={handleSubscribe}
-                          disabled={isSubscribing}
-                          className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all shadow-lg hover:shadow-orange-500/25 hover:scale-105 active:scale-95 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isSubscribing ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              {EN.processing}
-                            </>
-                          ) : (
-                            EN.upgradeToPro
-                          )}
-                        </button>
-                        <p className="text-[10px] text-slate-600">{EN.securePayment}</p>
+                    <div className="flex flex-col items-center gap-4 pt-4">
+                      <div className="text-center">
+                        <span className="text-3xl font-black text-white">$5.00</span>
+                        <span className="text-sm font-medium text-slate-500"> {EN.month}</span>
                       </div>
-                    )}
+                      <button 
+                        onClick={handleSubscribe}
+                        disabled={isSubscribing || profile.is_pro}
+                        className={`px-8 py-4 rounded-xl font-black uppercase tracking-[0.2em] text-xs transition-all w-full md:w-auto flex items-center justify-center gap-2 ${profile.is_pro ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-lg hover:shadow-orange-500/25 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                      >
+                        {isSubscribing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            {EN.processing}
+                          </>
+                        ) : profile.is_pro ? (
+                          "You are already a ZippyType Pro user"
+                        ) : (
+                          EN.upgradeToPro
+                        )}
+                      </button>
+                      <p className="text-[10px] text-slate-600">{EN.securePayment}</p>
+                    </div>
 
                     <div className="p-8 glass border border-white/10 rounded-[2rem] space-y-8">
                       <div className="flex items-center gap-3">
