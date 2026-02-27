@@ -7,9 +7,7 @@ import {
   BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search,
   Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown
 } from 'lucide-react';
-import enText from './src/Lang/english.lang?raw';
-
-const EN = JSON.parse(enText);
+import { useTranslation } from './src/LanguageContext';
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout } from './types';
 import { fetchTypingText } from './services/geminiService';
 import { fetchGithubTypingText } from './services/githubService';
@@ -69,9 +67,16 @@ const POWER_UP_REFS = {
 const normalizeText = (text: string) => text.replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/—/g, "-").replace(/…/g, "...");
 
 const App: React.FC = () => {
+  const { t, setLanguage, currentLang } = useTranslation();
+  const EN = useMemo(() => new Proxy({}, {
+    get: (target, prop) => t(prop as string)
+  }) as Record<string, string>, [t]);
+
   const [showSubscription, setShowSubscription] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState<'subscription' | 'gift_card'>('subscription');
   const [clientSecret, setClientSecret] = useState("");
+  const [textLength, setTextLength] = useState<'short' | 'medium' | 'long'>('medium');
+  const [showLengthModal, setShowLengthModal] = useState(false);
 
   const checkProAction = (action: () => void) => {
     if (profile.is_pro) {
@@ -325,6 +330,8 @@ const App: React.FC = () => {
       setCurrentView(AppView.PRIVACY);
     } else if (window.location.pathname === '/redirect') {
       setCurrentView(AppView.REDIRECT);
+    } else if (window.location.pathname !== '/') {
+      setCurrentView(AppView.NOT_FOUND);
     }
   }, []);
 
@@ -685,7 +692,7 @@ const App: React.FC = () => {
       
       const generator = async () => {
         if (provider === AIProvider.GEMINI) {
-          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined);
+          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength);
         } else {
           // If user is Pro, always use the server-side generation for GitHub provider
           // This allows them to use GPT-4o without providing their own token
@@ -696,7 +703,8 @@ const App: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                   difficulty: customDiff || difficulty, 
-                  topic: seed || "General"
+                  topic: seed || "General",
+                  textLength
                 })
               });
               if (!res.ok) {
@@ -707,7 +715,7 @@ const App: React.FC = () => {
               return data.text;
             } catch (err) {
               console.warn("Pro generation failed, falling back to Gemini:", err);
-              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined);
+              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength);
             }
           }
 
@@ -716,9 +724,9 @@ const App: React.FC = () => {
               setShowGithubHelp(true);
               throw new Error("GitHub token required for free users");
             }
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, githubToken);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength);
           } else {
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, githubToken);
+            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength);
           }
         }
       };
@@ -807,7 +815,7 @@ const App: React.FC = () => {
         // 3. Generate Text
         let text = "";
         if (provider === AIProvider.GEMINI) {
-          text = await fetchTypingText(difficulty, customTopic || "General", undefined);
+          text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength);
         } else {
           if (profile.is_pro) {
             try {
@@ -816,7 +824,8 @@ const App: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                   difficulty, 
-                  topic: customTopic || "General"
+                  topic: customTopic || "General",
+                  textLength
                 })
               });
               if (!res.ok) {
@@ -827,16 +836,16 @@ const App: React.FC = () => {
               text = data.text;
             } catch (err) {
               console.warn("Pro generation failed, falling back to Gemini:", err);
-              text = await fetchTypingText(difficulty, customTopic || "General", undefined);
+              text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength);
             }
           } else if (customTopic) {
             if (!githubToken) {
               setShowGithubHelp(true);
               throw new Error("GitHub token required for free users");
             }
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength);
           } else {
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken);
+            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength);
           }
         }
         const normalized = normalizeText(text.trim());
@@ -2007,7 +2016,7 @@ const App: React.FC = () => {
                     <div className="flex flex-col items-center justify-center gap-8 py-8 w-full max-w-lg">
                       <div className="space-y-4 w-full text-center">
                         <p className="text-slate-600 italic uppercase text-[10px] tracking-[0.4em]">Race Setup</p>
-                        <div className="relative w-full max-w-md mx-auto">
+                        <div className="relative w-full max-w-md mx-auto space-y-3">
                           <input 
                             type="text" 
                             placeholder={profile.is_pro ? "Enter a custom topic (e.g., 'Cyberpunk')" : "Enter a custom topic (Free: 25/day)"}
@@ -2015,6 +2024,12 @@ const App: React.FC = () => {
                             onChange={(e) => setCustomTopic(e.target.value)}
                             className={`w-full bg-black/40 border ${profile.is_pro ? 'border-indigo-500/30 focus:border-indigo-500' : 'border-white/5 focus:border-white/20'} rounded-xl p-4 text-white font-bold text-sm transition-all outline-none shadow-inner text-center placeholder:text-slate-600`}
                           />
+                          <button
+                            onClick={() => setShowLengthModal(true)}
+                            className="w-full py-2 bg-black/20 border border-white/5 hover:border-white/20 rounded-xl text-[10px] font-bold text-slate-400 uppercase tracking-widest transition-all"
+                          >
+                            Length: {textLength === 'short' ? 'Short (6-8 words)' : textLength === 'medium' ? 'Medium (10-13 words)' : 'Long (20-25 words)'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -2075,6 +2090,41 @@ const App: React.FC = () => {
           Privacy Policy
         </a>
       </footer>
+
+      {showLengthModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-[#0f172a] border border-white/10 rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-indigo-500 rounded-t-[2.5rem]" />
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-black text-white uppercase tracking-widest">Text Length</h3>
+              <button onClick={() => setShowLengthModal(false)} className="text-slate-500 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => { setTextLength('short'); setShowLengthModal(false); }}
+                className={`w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all border ${textLength === 'short' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50' : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/20'}`}
+              >
+                Short (6-8 words)
+              </button>
+              <button
+                onClick={() => { setTextLength('medium'); setShowLengthModal(false); }}
+                className={`w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all border ${textLength === 'medium' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50' : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/20'}`}
+              >
+                Medium (10-13 words)
+              </button>
+              <button
+                onClick={() => { setTextLength('long'); setShowLengthModal(false); }}
+                className={`w-full py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all border ${textLength === 'long' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/50' : 'bg-black/40 text-slate-400 border-white/5 hover:border-white/20'}`}
+              >
+                Long (20-25 words)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSubscription && clientSecret && (
         <StripeCheckout 
           clientSecret={clientSecret} 

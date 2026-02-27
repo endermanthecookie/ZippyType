@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from 'react-error-boundary';
 import './index.css';
 import App from './App';
+import { LanguageProvider } from './src/LanguageContext';
 
 const Fallback = ({ error, resetErrorBoundary }: any) => {
   return (
@@ -36,7 +37,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary FallbackComponent={Fallback}>
-      <App />
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

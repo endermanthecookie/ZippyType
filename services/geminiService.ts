@@ -6,7 +6,8 @@ export const fetchTypingText = async (
   difficulty: Difficulty, 
   category: string = "General", 
   seed?: string,
-  problemKeys: string[] = []
+  problemKeys: string[] = [],
+  textLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<string> => {
   const drillContext = problemKeys.length > 0 
     ? `IMPORTANT: This is a neuro-adaptive drill. The user is struggling with these keys: [${problemKeys.join(', ')}]. 
@@ -15,14 +16,17 @@ export const fetchTypingText = async (
 
   const theme = category !== "General" ? category : "fascinating trivia or life philosophy";
 
+  let lengthConstraint = "";
+  if (textLength === 'short') lengthConstraint = "6-8 words";
+  else if (textLength === 'medium') lengthConstraint = "10-13 words";
+  else if (textLength === 'long') lengthConstraint = "20-25 words";
+
   const prompt = `Generate a single ${difficulty} level typing practice sentence about "${theme}". 
   ${seed ? `Base the content loosely on: ${seed}.` : ''}
   ${drillContext}
   
   Constraints:
-  - Easy: Short, simple words, no complex punctuation. (10-15 words)
-  - Medium: Moderate length, some common punctuation. (20-30 words)
-  - Hard: Longer, complex vocabulary, advanced punctuation. (40-60 words)
+  - Exact length required: ${lengthConstraint}
   - Return ONLY the sentence text. No quotes. No extra labels.`;
 
   try {

@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).end('Method Not Allowed');
   }
 
-  const { difficulty, topic, problemKeys } = req.body;
+  const { difficulty, topic, problemKeys, textLength = 'medium' } = req.body;
 
   try {
     // Get an active token from Supabase
@@ -27,8 +27,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ error: 'No active GitHub tokens available' });
     }
 
+    let lengthConstraint = "";
+    if (textLength === 'short') lengthConstraint = "6-8 words";
+    else if (textLength === 'medium') lengthConstraint = "10-13 words";
+    else if (textLength === 'long') lengthConstraint = "20-25 words";
+
     for (const tokenRow of tokens) {
-      const tokenValue = process.env[tokenRow.token_name];
+      // The DB has 'Github_tok_1', but Vercel env vars might be 'GITHUB_TOKEN_1' or 'Github_tok_1'
+      const envName = tokenRow.token_name.replace('Github_tok_', 'GITHUB_TOKEN_');
+      const tokenValue = process.env[envName] || process.env[tokenRow.token_name] || process.env[tokenRow.token_name.toUpperCase()];
+      
       if (!tokenValue) {
         // If env var is missing, mark as out
         await supabase.from('github_tokens').update({ status: 'out' }).eq('id', tokenRow.id);
@@ -43,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (problemKeys && problemKeys.length > 0) {
           prompt += `The text MUST frequently use these specific characters to help the user practice them: ${problemKeys.join(', ')}. `;
         }
-        prompt += `The text should be natural, engaging, and exactly 3-4 sentences long. Do not include any conversational filler, just the text itself.`;
+        prompt += `The text should be natural, engaging, and exactly ${lengthConstraint} long. Do not include any conversational filler, just the text itself.`;
 
         const response = await client.chat.completions.create({
           messages: [

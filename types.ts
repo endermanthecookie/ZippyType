@@ -41,7 +41,8 @@ export enum AppView {
   TUTORIALS = 'tutorials',
   PRIVACY = 'privacy',
   REDIRECT = 'redirect',
-  SEARCH = 'search'
+  SEARCH = 'search',
+  NOT_FOUND = 'not_found'
 }
 
 export enum SoundProfile {

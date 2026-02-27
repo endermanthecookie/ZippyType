@@ -268,11 +268,11 @@ export const saveHistory = async (userId: string, result: any) => {
       user_id: userId,
       wpm: Math.round(result.wpm),
       accuracy: Math.round(result.accuracy),
-      time: result.time,
-      errors: result.errors,
+      time: Math.round(result.time),
+      errors: Math.round(result.errors),
       difficulty: result.difficulty,
       mode: result.mode,
-      text_length: result.textLength
+      text_length: Math.round(result.textLength)
     });
     if (error) throw error;
   } catch (e) {

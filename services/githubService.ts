@@ -6,7 +6,8 @@ export const fetchGithubTypingText = async (
   category: string, 
   seed: string | undefined,
   problemKeys: string[],
-  token: string
+  token: string,
+  textLength: 'short' | 'medium' | 'long' = 'medium'
 ): Promise<string> => {
   const theme = category === "General" 
     ? "fascinating trivia, general knowledge, science facts, or life philosophy" 
@@ -16,12 +17,15 @@ export const fetchGithubTypingText = async (
     ? `IMPORTANT: This is a neuro-adaptive drill. The user is struggling with these keys: [${problemKeys.join(', ')}]. Ensure the generated text contains an abnormally high frequency of these specific characters to help them practice.`
     : "";
 
+  let lengthConstraint = "";
+  if (textLength === 'short') lengthConstraint = "6-8 words";
+  else if (textLength === 'medium') lengthConstraint = "10-13 words";
+  else if (textLength === 'long') lengthConstraint = "20-25 words";
+
   const prompt = `Generate a single ${difficulty} level typing practice sentence about "${theme}". 
   ${seed ? `Base the content loosely on: ${seed}.` : ''}
   ${drillContext}
-  - Easy: Short, simple words, no complex punctuation. (10-15 words)
-  - Medium: Moderate length, some common punctuation. (20-30 words)
-  - Hard: Longer, complex vocabulary, advanced punctuation, and technical terms. (40-60 words)
+  - Exact length required: ${lengthConstraint}
   Return ONLY the sentence text, no quotes, no labels, and no surrounding whitespace.`;
 
   try {
