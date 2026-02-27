@@ -690,20 +690,25 @@ const App: React.FC = () => {
           // If user is Pro, always use the server-side generation for GitHub provider
           // This allows them to use GPT-4o without providing their own token
           if (profile.is_pro) {
-            const res = await fetch('/api/generate-pro-text', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                difficulty: customDiff || difficulty, 
-                topic: seed || "General"
-              })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.error || "Pro generation failed");
+            try {
+              const res = await fetch('/api/generate-pro-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  difficulty: customDiff || difficulty, 
+                  topic: seed || "General"
+                })
+              });
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || "Pro generation failed");
+              }
+              const data = await res.json();
+              return data.text;
+            } catch (err) {
+              console.warn("Pro generation failed, falling back to Gemini:", err);
+              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined);
             }
-            const data = await res.json();
-            return data.text;
           }
 
           if (seed) { // Custom topic requested for non-pro users
@@ -805,20 +810,25 @@ const App: React.FC = () => {
           text = await fetchTypingText(difficulty, customTopic || "General", undefined);
         } else {
           if (profile.is_pro) {
-            const res = await fetch('/api/generate-pro-text', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                difficulty, 
-                topic: customTopic || "General"
-              })
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              throw new Error(errData.error || "Pro generation failed");
+            try {
+              const res = await fetch('/api/generate-pro-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  difficulty, 
+                  topic: customTopic || "General"
+                })
+              });
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || "Pro generation failed");
+              }
+              const data = await res.json();
+              text = data.text;
+            } catch (err) {
+              console.warn("Pro generation failed, falling back to Gemini:", err);
+              text = await fetchTypingText(difficulty, customTopic || "General", undefined);
             }
-            const data = await res.json();
-            text = data.text;
           } else if (customTopic) {
             if (!githubToken) {
               setShowGithubHelp(true);
