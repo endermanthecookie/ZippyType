@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Volume2, Layout, Globe, X, Sparkles } from 'lucide-react';
+import { Volume2, Layout, Globe, X, Sparkles, Link2, CheckCircle2 } from 'lucide-react';
 import { SoundProfile, KeyboardLayout } from '../../types';
 import { useTranslation } from '../../src/LanguageContext';
 
@@ -12,6 +12,9 @@ interface GeneralSettingsProps {
   setMusicVolume: (v: number) => void;
   sfxVolume: number;
   setSfxVolume: (v: number) => void;
+  userId?: string;
+  discordId?: string;
+  onDiscordLinked?: (id: string) => void;
 }
 
 const languages = [
@@ -31,37 +34,85 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   musicVolume,
   setMusicVolume,
   sfxVolume,
-  setSfxVolume
+  setSfxVolume,
+  userId,
+  discordId,
+  onDiscordLinked
 }) => {
-  const { currentLang, setLanguage, loading } = useTranslation();
+  const { t, currentLang, setLanguage, loading } = useTranslation();
   const [showLangModal, setShowLangModal] = useState(false);
+  const [isLinkingDiscord, setIsLinkingDiscord] = useState(false);
 
   const currentLangLabel = languages.find(l => l.code === currentLang)?.label || 'English';
+
+  const handleLinkDiscord = () => {
+    if (!userId) {
+      alert(t('loginToLinkDiscord') || "Please sign in first to link your Discord account.");
+      return;
+    }
+    
+    setIsLinkingDiscord(true);
+    
+    // Open popup for Discord OAuth
+    const width = 500;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      `/api/auth/discord/url?userId=${userId}`,
+      'Discord Link',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    const messageListener = (event: MessageEvent) => {
+      if (event.data?.type === 'DISCORD_LINK_SUCCESS') {
+        if (onDiscordLinked) onDiscordLinked(event.data.discordId);
+        setIsLinkingDiscord(false);
+        window.removeEventListener('message', messageListener);
+      } else if (event.data?.type === 'DISCORD_LINK_ERROR') {
+        alert(t('discordLinkFailed') || "Failed to link Discord account.");
+        setIsLinkingDiscord(false);
+        window.removeEventListener('message', messageListener);
+      }
+    };
+
+    window.addEventListener('message', messageListener);
+
+    // Check if popup closed
+    const checkClosed = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkClosed);
+        setIsLinkingDiscord(false);
+        window.removeEventListener('message', messageListener);
+      }
+    }, 1000);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
         <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-          <Globe size={14} className="text-cyan-400" /> Language
+          <Globe size={14} className="text-cyan-400" /> {t('language')}
         </h3>
         <button
           onClick={() => setShowLangModal(true)}
           className="w-full py-4 bg-black/40 border border-white/10 hover:border-cyan-500/50 rounded-xl text-sm font-bold text-white transition-all flex items-center justify-between px-6"
         >
           <span>{currentLangLabel}</span>
-          <span className="text-[10px] text-cyan-400 uppercase tracking-widest">Change</span>
+          <span className="text-[10px] text-cyan-400 uppercase tracking-widest">{t('change')}</span>
         </button>
       </div>
 
       <div className="p-6 glass border border-white/10 rounded-2xl space-y-6">
         <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-          <Volume2 size={14} className="text-indigo-400" /> Volume Control
+          <Volume2 size={14} className="text-indigo-400" /> {t('volumeControl')}
         </h3>
         
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Music Volume</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('musicVolume')}</span>
               <span className="text-[10px] font-mono text-indigo-400">{Math.round(musicVolume * 100)}%</span>
             </div>
             <input 
@@ -77,7 +128,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SFX Volume</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('sfxVolume')}</span>
               <span className="text-[10px] font-mono text-indigo-400">{Math.round(sfxVolume * 100)}%</span>
             </div>
             <input 
@@ -95,7 +146,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 
       <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
         <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-          <Volume2 size={14} className="text-indigo-400" /> Sound Profile
+          <Volume2 size={14} className="text-indigo-400" /> {t('soundProfile')}
         </h3>
         <div className="grid grid-cols-3 gap-3">
           {Object.values(SoundProfile).map(p => (
@@ -112,7 +163,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 
       <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
         <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-          <Layout size={14} className="text-purple-400" /> Keyboard Layout
+          <Layout size={14} className="text-purple-400" /> {t('keyboardLayout')}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {Object.values(KeyboardLayout).map(l => (
@@ -127,13 +178,37 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
         </div>
       </div>
 
+      <div className="p-6 glass border border-white/10 rounded-2xl space-y-4">
+        <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+          <Link2 size={14} className="text-[#5865F2]" /> {t('discordIntegration')}
+        </h3>
+        <div className="space-y-4">
+          <p className="text-xs text-slate-400">
+            {t('discordIntegrationDesc')}
+          </p>
+          {discordId ? (
+            <div className="w-full py-4 bg-[#5865F2]/10 border border-[#5865F2]/30 rounded-xl text-sm font-bold text-[#5865F2] flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} /> {t('discordLinked')}
+            </div>
+          ) : (
+            <button
+              onClick={handleLinkDiscord}
+              disabled={isLinkingDiscord}
+              className="w-full py-4 bg-[#5865F2] hover:bg-[#4752C4] rounded-xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isLinkingDiscord ? t('linking') : t('linkDiscordAccount')}
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="p-6 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl space-y-2">
         <div className="flex items-center gap-2 text-indigo-400">
           <Sparkles size={14} />
-          <span className="text-[10px] font-black uppercase tracking-widest">Secret Tip</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('secretTip')}</span>
         </div>
         <p className="text-xs text-slate-400 italic">
-          “Type at 22 WPM for this one time. You will get something funny!“
+          {t('secretTipDesc')}
         </p>
       </div>
 
@@ -142,7 +217,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div className="p-6 border-b border-white/5 flex items-center justify-between shrink-0">
               <h2 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
-                <Globe className="text-cyan-400" /> Select Language
+                <Globe className="text-cyan-400" /> {t('selectLanguage')}
               </h2>
               <button onClick={() => setShowLangModal(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
                 <X size={20} />

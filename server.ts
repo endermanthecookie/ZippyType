@@ -41,8 +41,99 @@ async function startServer() {
 
   const PORT = 3000;
 
+  // Stripe Webhook (Must be before express.json)
+  app.post('/api/webhooks/stripe', express.raw({type: 'application/json'}), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig as string, process.env.STRIPE_WEBHOOK_SECRET || '');
+    } catch (err: any) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const discordUserId = session.metadata?.discord_id;
+      const internalUserId = session.metadata?.user_id;
+
+      if (internalUserId) {
+        await supabaseAdmin.from('profiles').update({ is_pro: true }).eq('id', internalUserId);
+      }
+
+      if (discordUserId) {
+        const GUILD_ID = process.env.DISCORD_GUILD_ID;
+        const ROLE_ID = process.env.DISCORD_PRO_ROLE_ID;
+        if (GUILD_ID && ROLE_ID) {
+          await fetch(`https://discord.com/api/v10/guilds/${GUILD_ID}/members/${discordUserId}/roles/${ROLE_ID}`, {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+          });
+        }
+      }
+    }
+    res.json({received: true});
+  });
+
   // Middleware to parse JSON bodies
   app.use(express.json());
+
+  // Discord OAuth Routes
+  app.get('/api/auth/discord/url', (req, res) => {
+    const redirectUri = `${req.headers.origin || process.env.APP_URL || 'http://localhost:3000'}/api/auth/discord/callback`;
+    const params = new URLSearchParams({
+      client_id: process.env.DISCORD_CLIENT_ID || '',
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'identify',
+      state: req.query.userId as string
+    });
+    res.json({ url: `https://discord.com/api/oauth2/authorize?${params}` });
+  });
+
+  app.get('/api/auth/discord/callback', async (req, res) => {
+    const { code, state: userId } = req.query;
+    const redirectUri = `${req.headers.origin || process.env.APP_URL || 'http://localhost:3000'}/api/auth/discord/callback`;
+    
+    try {
+      const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.DISCORD_CLIENT_ID || '',
+          client_secret: process.env.DISCORD_CLIENT_SECRET || '',
+          grant_type: 'authorization_code',
+          code: code as string,
+          redirect_uri: redirectUri,
+        })
+      });
+      const tokenData = await tokenResponse.json();
+      
+      const userResponse = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const userData = await userResponse.json();
+      
+      if (userId && userData.id) {
+        await supabaseAdmin.from('profiles').update({ discord_id: userData.id }).eq('id', userId);
+      }
+
+      res.send(`
+        <html><body><script>
+          if (window.opener) {
+            window.opener.postMessage({ type: 'DISCORD_LINK_SUCCESS', discordId: '${userData.id}' }, '*');
+            window.close();
+          } else {
+            window.location.href = '/';
+          }
+        </script></body></html>
+      `);
+    } catch (e) {
+      res.send('Error linking Discord');
+    }
+  });
 
   app.get('/api/member-count', async (req, res) => {
     try {
@@ -146,13 +237,9 @@ async function startServer() {
   });
 
   // Stripe Subscription Endpoint
-  app.post('/api/create-subscription-intent', async (req, res) => {
+  app.post('/api/create-checkout-session', async (req, res) => {
+    const { userId, discordId } = req.body;
     try {
-      // Create a Customer
-      const customer = await stripe.customers.create();
-
-      // Create a Subscription
-      // Cache the price ID to avoid creating a new price on every request
       if (!proPriceId) {
         const price = await stripe.prices.create({
           unit_amount: 500, // $5.00
@@ -165,23 +252,19 @@ async function startServer() {
         proPriceId = price.id;
       }
 
-      const subscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [{
-          price: proPriceId,
-        }],
-        payment_behavior: 'default_incomplete',
-        payment_settings: { save_default_payment_method: 'on_subscription' },
-        expand: ['latest_invoice.payment_intent'],
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{ price: proPriceId, quantity: 1 }],
+        mode: 'subscription',
+        success_url: `${req.headers.origin || process.env.APP_URL || 'http://localhost:3000'}/?success=true`,
+        cancel_url: `${req.headers.origin || process.env.APP_URL || 'http://localhost:3000'}/?canceled=true`,
+        metadata: {
+          user_id: userId || '',
+          discord_id: discordId || ''
+        }
       });
 
-      const invoice = subscription.latest_invoice as any;
-      const paymentIntent = invoice.payment_intent as unknown as Stripe.PaymentIntent;
-
-      res.send({
-        subscriptionId: subscription.id,
-        clientSecret: paymentIntent.client_secret,
-      });
+      res.send({ url: session.url });
     } catch (error: any) {
       console.error('Stripe error:', error);
       res.status(400).send({ error: { message: error.message } });

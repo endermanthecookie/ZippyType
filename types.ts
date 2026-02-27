@@ -63,6 +63,7 @@ export interface UserProfile {
   accentColor: string;
   theme?: string;
   is_pro?: boolean;
+  discord_id?: string;
   customTheme?: {
     bg: string;
     text: string;

@@ -89,15 +89,14 @@ const App: React.FC = () => {
   const handleSubscribe = async () => {
     setIsSubscribing(true);
     try {
-      const res = await fetch('/api/create-subscription-intent', {
+      const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.id, discordId: profile.discord_id })
       });
       const data = await res.json();
-      if (data.clientSecret) {
-        setClientSecret(data.clientSecret);
-        setCheckoutMode('subscription');
-        setShowSubscription(true);
+      if (data.url) {
+        window.location.href = data.url;
       } else {
         alert('Failed to initialize subscription');
       }
@@ -344,21 +343,6 @@ const App: React.FC = () => {
   const [roomStatus, setRoomStatus] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const channelRef = useRef<any>(null);
-
-  useEffect(() => {
-    const wpm = elapsedTime > 0 ? (correctKeys / 5) / (elapsedTime / 60) : 0;
-    if (wpm >= 22 && wpm <= 23) {
-      if (!easterEggTriggered) {
-        const audio = new Audio('https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/In-Game-Music/easteregg.mp3');
-        audio.play().catch(e => console.error("Easter egg audio failed", e));
-        setEasterEggTriggered(true);
-      }
-    } else if (wpm > 0) {
-      // Reset if they leave the range, so it can trigger again if they re-enter
-      // But only if they are actually typing (wpm > 0)
-      setEasterEggTriggered(false);
-    }
-  }, [correctKeys, elapsedTime, easterEggTriggered]);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
@@ -1035,12 +1019,35 @@ const App: React.FC = () => {
     setTotalKeys(prev => prev + 1);
     if (val === currentText.substring(0, val.length)) {
       if (val.length > userInput.length) {
-        playSound('correct'); setCorrectKeys(prev => prev + 1);
+        playSound('correct'); 
+        const nextCorrectKeys = correctKeys + 1;
+        setCorrectKeys(nextCorrectKeys);
+        
         if (val[val.length - 1] === ' ') {
           setStreak(s => { const ns = s + 1; if (ns % 8 === 0) awardPowerUp(); return ns; });
           if (gameMode === GameMode.BEAT_THE_CLOCK) {
             setTimeLeft(prev => prev + 2.5); // More generous bonus
           }
+        }
+
+        // Easter Egg Logic - Triggered by user interaction (typing)
+        const now = Date.now();
+        const duration = startTime ? (now - startTime) / 1000 : 0;
+        const wpm = duration > 0 ? (nextCorrectKeys / 5) / (duration / 60) : 0;
+        
+        if (wpm >= 22 && wpm <= 23) {
+          if (!easterEggTriggered) {
+            if (bgmRef.current) bgmRef.current.pause();
+            const audio = new Audio('https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/public/In-Game-Music/easteregg.mp3');
+            audio.volume = sfxVolume;
+            audio.play().catch(e => console.error("Easter egg audio failed", e));
+            audio.onended = () => {
+              if (bgmRef.current) bgmRef.current.play().catch(() => {});
+            };
+            setEasterEggTriggered(true);
+          }
+        } else if (wpm > 0) {
+          setEasterEggTriggered(false);
         }
       }
       setUserInput(val);
@@ -1862,6 +1869,9 @@ const App: React.FC = () => {
                     setMusicVolume={setMusicVolume}
                     sfxVolume={sfxVolume}
                     setSfxVolume={setSfxVolume}
+                    userId={user?.id}
+                    discordId={profile.discord_id}
+                    onDiscordLinked={(id) => setProfile(prev => ({ ...prev, discord_id: id }))}
                   />
                 )}
 
@@ -2063,13 +2073,13 @@ const App: React.FC = () => {
               <div className="w-full max-w-4xl overflow-x-auto pb-4 no-scrollbar">
                 <div className="flex gap-4 px-2 min-w-max">
                   {[
-                    { mode: GameMode.SOLO, label: 'Solo Practice', desc: 'Standard flow, no pressure.', icon: <User /> },
-                    { mode: GameMode.TIME_ATTACK, label: '60s Blitz', desc: 'Type against the clock.', icon: <Timer /> },
-                    { mode: GameMode.COMPETITIVE, label: 'Competitive', desc: 'Battle bots or friends.', icon: <Trophy /> },
-                    { mode: GameMode.DAILY, label: 'Daily Race', desc: 'Today\'s unique challenge.', icon: <Sparkles /> },
-                    { mode: GameMode.BEAT_THE_CLOCK, label: 'Beat Clock', desc: 'Correct words add time.', icon: <Clock /> },
-                    { mode: GameMode.ACCURACY_CHALLENGE, label: 'Accuracy', desc: 'One mistake = Game Over.', icon: <Target /> },
-                    { mode: GameMode.WPM_RACE, label: 'WPM Race', desc: 'Race a steady 60 WPM bot.', icon: <Zap /> }
+                    { mode: GameMode.SOLO, label: EN.gameModeSolo, desc: EN.gameModeSoloDesc, icon: <User /> },
+                    { mode: GameMode.TIME_ATTACK, label: EN.gameModeTimeAttack, desc: EN.gameModeTimeAttackDesc, icon: <Timer /> },
+                    { mode: GameMode.COMPETITIVE, label: EN.gameModeCompetitive, desc: EN.gameModeCompetitiveDesc, icon: <Trophy /> },
+                    { mode: GameMode.DAILY, label: EN.gameModeDaily, desc: EN.gameModeDailyDesc, icon: <Sparkles /> },
+                    { mode: GameMode.BEAT_THE_CLOCK, label: EN.gameModeBeatClock, desc: EN.gameModeBeatClockDesc, icon: <Clock /> },
+                    { mode: GameMode.ACCURACY_CHALLENGE, label: EN.gameModeAccuracy, desc: EN.gameModeAccuracyDesc, icon: <Target /> },
+                    { mode: GameMode.WPM_RACE, label: EN.gameModeWpmRace, desc: EN.gameModeWpmRaceDesc, icon: <Zap /> }
                   ].map((m) => {
                     const isLocked = !user && (m.mode !== GameMode.SOLO || hasUsedSolo);
                     return (
