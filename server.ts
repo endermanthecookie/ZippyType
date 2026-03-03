@@ -402,6 +402,21 @@ async function startServer() {
 
       res.status(500).json({ error: 'All GitHub tokens failed or are exhausted' });
     } catch (error: any) {
+      // Final fallback to Gemini on server if GitHub fails
+      if (process.env.GEMINI_API_KEY) {
+        try {
+          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Generate a single ${difficulty} level typing practice sentence about "${topic || 'General'}". Language: ${language || 'en'}. Length: ${textLength === 'short' ? '6-8 words' : textLength === 'long' ? '20-25 words' : '10-13 words'}. Return ONLY the text.`,
+          });
+          if (response.text) {
+            return res.json({ text: response.text.trim() });
+          }
+        } catch (geminiError) {
+          console.error('Server Gemini fallback failed:', geminiError);
+        }
+      }
       console.error('Pro text generation error:', error);
       res.status(500).json({ error: error.message });
     }

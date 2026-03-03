@@ -852,36 +852,36 @@ const App: React.FC = () => {
       const seed = customTopic;
       
       const generator = async () => {
+        // Use server-side generation for Pro users OR Guest users
+        // This allows them to use high-quality models (GPT-4o) via GUEST_TOKEN or our pooled tokens
+        if (profile.is_pro || !user) {
+          try {
+            const res = await fetch('/api/generate-pro-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                difficulty: customDiff || difficulty, 
+                topic: seed || "General",
+                textLength,
+                language: currentLang,
+                isGuest: !user
+              })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              return data.text;
+            }
+            // If server fails, we fall through to the old logic below
+            const errData = await res.json().catch(() => ({}));
+            console.warn("Server generation failed, falling back:", errData.error);
+          } catch (err) {
+            console.warn("Server generation failed, falling back:", err);
+          }
+        }
+
         if (provider === AIProvider.GEMINI) {
           return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength, currentLang);
         } else {
-          // If user is Pro, always use the server-side generation for GitHub provider
-          // This allows them to use GPT-4o without providing their own token
-          if (profile.is_pro) {
-            try {
-              const res = await fetch('/api/generate-pro-text', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  difficulty: customDiff || difficulty, 
-                  topic: seed || "General",
-                  textLength,
-                  language: currentLang,
-                  isGuest: !user
-                })
-              });
-              if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || "Pro generation failed");
-              }
-              const data = await res.json();
-              return data.text;
-            } catch (err) {
-              console.warn("Pro generation failed, falling back to Gemini:", err);
-              return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength, currentLang);
-            }
-          }
-
           if (seed) { // Custom topic requested for non-pro users
             if (!githubToken) {
               setShowGithubHelp(true);
