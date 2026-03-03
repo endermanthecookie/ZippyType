@@ -356,6 +356,7 @@ const App: React.FC = () => {
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const sfxGainRef = useRef<GainNode | null>(null);
   const bgmGainRef = useRef<GainNode | null>(null);
+  const isFadingRef = useRef(false);
   const currentSongIndexRef = useRef<number>(0);
   const saveTimeoutRef = useRef<number | null>(null);
 
@@ -405,6 +406,19 @@ const App: React.FC = () => {
         console.log("Song ended, playing next...");
         playNextSong();
       });
+
+      audio.addEventListener('timeupdate', () => {
+        if (audio.duration && bgmGainRef.current && audioCtx.current && !isFadingRef.current) {
+          const timeLeft = audio.duration - audio.currentTime;
+          if (timeLeft <= 25 && timeLeft > 0) {
+            isFadingRef.current = true;
+            const ctx = audioCtx.current;
+            // Start fade from current volume to 0 over the remaining time
+            bgmGainRef.current.gain.setValueAtTime(bgmGainRef.current.gain.value, ctx.currentTime);
+            bgmGainRef.current.gain.linearRampToValueAtTime(0, ctx.currentTime + timeLeft);
+          }
+        }
+      });
     }
     if (audioCtx.current.state === 'suspended') {
       audioCtx.current.resume();
@@ -416,6 +430,14 @@ const App: React.FC = () => {
     const nextIndex = (currentSongIndexRef.current + 1) % songs.length;
     currentSongIndexRef.current = nextIndex;
     bgmRef.current.src = songs[nextIndex];
+    
+    // Reset fade state and volume for the new song
+    isFadingRef.current = false;
+    if (bgmGainRef.current && audioCtx.current) {
+      bgmGainRef.current.gain.cancelScheduledValues(audioCtx.current.currentTime);
+      bgmGainRef.current.gain.setValueAtTime(musicVolume, audioCtx.current.currentTime);
+    }
+
     bgmRef.current.load();
     bgmRef.current.play().catch(e => console.warn("BGM play failed:", e));
   };
@@ -450,8 +472,10 @@ const App: React.FC = () => {
   }, [soundEnabled]);
 
   useEffect(() => {
-    if (bgmGainRef.current) {
-      bgmGainRef.current.gain.value = musicVolume;
+    if (bgmGainRef.current && audioCtx.current) {
+      bgmGainRef.current.gain.cancelScheduledValues(audioCtx.current.currentTime);
+      bgmGainRef.current.gain.setValueAtTime(musicVolume, audioCtx.current.currentTime);
+      isFadingRef.current = false;
     }
     localStorage.setItem('music_volume', musicVolume.toString());
   }, [musicVolume]);
