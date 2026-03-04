@@ -10,8 +10,8 @@ import {
   Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown, Users, Code
 } from 'lucide-react';
 import { useTranslation } from './src/LanguageContext';
-import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout, Achievement, Quest } from './types';
-import { fetchTypingText } from './services/geminiService';
+import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout, Achievement, Quest, ReplayEvent } from './types';
+import { generateText } from './services/aiService';
 import { fetchGithubTypingText } from './services/githubService';
 import { getCoachReport } from './services/coachService';
 import { supabase, saveUserPreferences, loadUserPreferences, checkIpSoloUsage, recordIpSoloUsage, getUserIdByIp, getDailyText, initializeUserCredits, saveHistory, fetchHistory as fetchHistoryService, incrementUsage, checkProStatus } from './services/supabaseService';
@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { StripeCheckout } from './components/StripeCheckout';
 import HistoryView from './components/HistoryView';
 import WeeklyReport from './components/WeeklyReport';
+import ClanView from './components/ClanView';
 import KeyHeatmap from './components/KeyHeatmap';
 import Matchmaking from './components/Matchmaking';
 import MultiplayerRace from './components/MultiplayerRace';
@@ -210,6 +211,8 @@ const App: React.FC = () => {
   const [showGuide, setShowGuide] = useState(true);
   const [hasUsedSolo, setHasUsedSolo] = useState<boolean | null>(null);
   const [showProModal, setShowProModal] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [lastResult, setLastResult] = useState<TypingResult | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -391,6 +394,8 @@ const App: React.FC = () => {
       setCurrentView(AppView.HISTORY);
     } else if (path === '/leaderboard') {
       setCurrentView(AppView.LEADERBOARD);
+    } else if (path === '/clans') {
+      setCurrentView(AppView.CLANS);
     } else if (path === '/search') {
       setCurrentView(AppView.SEARCH);
     } else if (path.startsWith('/settings')) {
@@ -465,6 +470,7 @@ const App: React.FC = () => {
   const isFadingRef = useRef(false);
   const currentSongIndexRef = useRef<number>(0);
   const saveTimeoutRef = useRef<number | null>(null);
+  const replayEventsRef = useRef<ReplayEvent[]>([]);
 
   const songs = [
     "https://ewdrrhdsxjrhxyzgjokg.supabase.co/storage/v1/object/sign/In-Game-Music/Hyperdrive_Velocity.mp3?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9kZmZiYjcwMi04ZWE2LTQ3ZjYtODdkOC0xZDQyZTIwNTgzZjQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJJbi1HYW1lLU11c2ljL0h5cGVyZHJpdmVfVmVsb2NpdHkubXAzIiwiaWF0IjoxNzcyMTg3NjUyLCJleHAiOjMxNTUzNDA2NTE2NTJ9.VX-pPcSMJiyIZQY0tJp3ptupYrluH-DtsEbKmT62nng",
@@ -999,19 +1005,18 @@ const App: React.FC = () => {
           }
         }
 
-        if (provider === AIProvider.GEMINI) {
-          return await fetchTypingText(customDiff || difficulty, seed || "General", undefined, [], textLength, currentLang, currentMode);
-        } else {
-          if (seed) { // Custom topic requested for non-pro users
-            if (!githubToken) {
-              setShowGithubHelp(true);
-              throw new Error("GitHub token required for free users");
-            }
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength, currentLang);
-          } else {
-            return await fetchGithubTypingText(customDiff || difficulty, "General", seed, [], githubToken, textLength, currentLang);
-          }
-        }
+        return await generateText(
+          provider,
+          githubToken,
+          profile.is_pro || false,
+          customDiff || difficulty,
+          seed || "General",
+          seed,
+          currentMode === GameMode.ADAPTIVE ? problemKeys : [],
+          textLength,
+          currentLang,
+          currentMode
+        );
       };
 
       if (currentMode === GameMode.DAILY) {
@@ -1037,6 +1042,7 @@ const App: React.FC = () => {
   };
 
   const startGame = async (overrideMode?: GameMode) => {
+    replayEventsRef.current = [];
     if (!user) {
       const used = await checkIpSoloUsage();
       if (used) { setHasUsedSolo(true); setShowRestrictedModal(true); return; }
@@ -1097,41 +1103,18 @@ const App: React.FC = () => {
 
         // 3. Generate Text
         let text = "";
-        if (provider === AIProvider.GEMINI) {
-          text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength, currentLang);
-        } else {
-          if (profile.is_pro) {
-            try {
-              const res = await fetch('/api/generate-pro-text', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  difficulty, 
-                  topic: customTopic || "General",
-                  textLength,
-                  language: currentLang
-                })
-              });
-              if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || "Pro generation failed");
-              }
-              const data = await res.json();
-              text = data.text;
-            } catch (err) {
-              console.warn("Pro generation failed, falling back to Gemini:", err);
-              text = await fetchTypingText(difficulty, customTopic || "General", undefined, [], textLength, currentLang);
-            }
-          } else if (customTopic) {
-            if (!githubToken) {
-              setShowGithubHelp(true);
-              throw new Error("GitHub token required for free users");
-            }
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength, currentLang);
-          } else {
-            text = await fetchGithubTypingText(difficulty, "General", customTopic, problemKeys, githubToken, textLength, currentLang);
-          }
-        }
+        text = await generateText(
+          provider,
+          githubToken,
+          profile.is_pro || false,
+          difficulty,
+          customTopic || "General",
+          customTopic,
+          [],
+          textLength,
+          currentLang,
+          GameMode.SOLO
+        );
         const normalized = normalizeText(text.trim());
         
         await supabase.from('rooms').update({ 
@@ -1160,6 +1143,13 @@ const App: React.FC = () => {
     
     // Key Speed Tracking
     const now = Date.now();
+    const isCorrect = val[val.length - 1] === currentText[val.length - 1];
+    replayEventsRef.current.push({
+      timestamp: now - (startTime || now),
+      key: val[val.length - 1],
+      isCorrect
+    });
+    
     if (lastKeyTime.current && val.length > userInput.length) {
       const diff = now - lastKeyTime.current;
       const char = currentText[val.length - 1];
@@ -1330,7 +1320,7 @@ const App: React.FC = () => {
       const pbKey = `pb_${difficulty}_${mode}`;
       const currentPb = parseInt(localStorage.getItem(pbKey) || '0');
       if (wpm > currentPb) localStorage.setItem(pbKey, wpm.toString());
-      const note = await getCoachReport(provider, githubToken, wpm, accuracy, errors, Object.keys(errorMap));
+      const note = await getCoachReport(provider, githubToken, profile.is_pro || false, wpm, accuracy, errors, Object.keys(errorMap));
       const result: TypingResult = { 
         id: Date.now().toString(), 
         date: new Date().toISOString(), 
@@ -1341,12 +1331,16 @@ const App: React.FC = () => {
         difficulty, 
         mode: mode, 
         textLength: currentText.length, 
+        text: currentText,
         errorMap, 
         keySpeeds,
-        coachNote: note 
+        coachNote: note,
+        replayData: replayEventsRef.current
       };
       await saveHistory(user.id, result);
       setHistory(prev => [result, ...prev].slice(0, 50));
+      setLastResult(result);
+      setShowResultModal(true);
       checkAchievements(result);
       checkQuests(result);
 
@@ -1424,6 +1418,17 @@ const App: React.FC = () => {
 
     setCurrentText(""); setDisplayedText(""); setUserInput("");
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isActive || loading || isTypingOut) return;
+      if (e.key === '1' && powerUps[0]) { usePowerUp(powerUps[0].type); e.preventDefault(); }
+      if (e.key === '2' && powerUps[1]) { usePowerUp(powerUps[1].type); e.preventDefault(); }
+      if (e.key === '3' && powerUps[2]) { usePowerUp(powerUps[2].type); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isActive, loading, isTypingOut, powerUps]);
 
   const awardPowerUp = () => {
     const types = Object.keys(POWER_UP_REFS) as PowerUpType[];
@@ -1872,6 +1877,9 @@ const App: React.FC = () => {
               <button onClick={() => navigate('/leaderboard')} className={`p-3 rounded-xl transition-all ${currentView === AppView.LEADERBOARD ? `bg-amber-500 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Leaderboard">
                 <Trophy size={20} />
               </button>
+              <button onClick={() => navigate('/clans')} className={`p-3 rounded-xl transition-all ${currentView === AppView.CLANS ? `bg-indigo-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Clans">
+                <Users size={20} />
+              </button>
               <button onClick={() => checkRestricted(AppView.SETTINGS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.SETTINGS ? `bg-purple-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Settings">
                 <SettingsIcon size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
@@ -1892,6 +1900,8 @@ const App: React.FC = () => {
           <ZippySearch />
         ) : currentView === AppView.LEADERBOARD ? (
           <Leaderboard currentUser={user} userProfile={profile} />
+        ) : currentView === AppView.CLANS ? (
+          <ClanView user={user} profile={profile} />
         ) : currentView === AppView.PROFILE ? (
           <div className="glass rounded-[2rem] p-10 space-y-10 animate-in zoom-in-95 duration-300 border border-white/10 shadow-2xl">
             <div className="flex items-center gap-3"><div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl"><User size={22} /></div><h2 className="text-base font-black text-white uppercase tracking-tighter">{EN.profileDetails}</h2></div>
@@ -2412,6 +2422,7 @@ const App: React.FC = () => {
                     { mode: GameMode.ACCURACY_CHALLENGE, label: EN.gameModeAccuracy, desc: EN.gameModeAccuracyDesc, icon: <Target /> },
                     { mode: GameMode.WPM_RACE, label: EN.gameModeWpmRace, desc: EN.gameModeWpmRaceDesc, icon: <Zap /> },
                     { mode: GameMode.CUSTOM_TEXT, label: "Custom Text", desc: "Practice with your own text", icon: <FileText /> },
+                    { mode: GameMode.ADAPTIVE, label: EN.adaptiveMode, desc: "AI-generated drills based on your weak keys", icon: <Dna /> },
                     { mode: GameMode.CODE, label: "Code Mode", desc: "Practice coding syntax", icon: <Code /> },
                     { mode: GameMode.COMPETITIVE, label: "Live 1v1", desc: "Race against real players", icon: <Users /> }
                   ].map((m) => {
@@ -2576,6 +2587,26 @@ const App: React.FC = () => {
               </div>
 
               <div className="relative group mb-10">
+                {isActive && powerUps.length > 0 && (
+                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 flex gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {powerUps.map((p, i) => (
+                      <motion.button
+                        key={p.id}
+                        whileHover={{ scale: 1.1, y: -4 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => usePowerUp(p.type)}
+                        className="group relative flex items-center gap-3 px-5 py-3 bg-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl hover:border-indigo-500/50 transition-all"
+                      >
+                        <div className="absolute -top-2 -right-2 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-lg border border-white/10">{i + 1}</div>
+                        <span className="text-xl">{p.icon}</span>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[9px] font-black text-white uppercase tracking-widest leading-none mb-1">{p.label}</span>
+                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter leading-none group-hover:text-indigo-400 transition-colors">{p.description}</span>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
                 <div className={`glass rounded-[2rem] p-10 min-h-[220px] flex items-center justify-center text-base md:text-xl font-mono leading-relaxed select-none transition-all duration-700 shadow-[inset_0_2px_15px_rgba(0,0,0,0.5)] ${isOverdrive ? 'ring-2 ring-indigo-500/30' : 'border border-white/10'}`}>
                   {loading ? (
                     <div className="flex flex-col items-center gap-6 py-4">
@@ -2756,7 +2787,18 @@ const App: React.FC = () => {
             setCurrentMatch({ roomId, opponent });
             setIsMatchmaking(false);
             // Generate text for the match
-            fetchTypingText(Difficulty.MEDIUM, "General", undefined, [], 'medium', currentLang).then(text => {
+            generateText(
+              provider,
+              githubToken,
+              profile.is_pro || false,
+              Difficulty.MEDIUM,
+              "General",
+              undefined,
+              [],
+              'medium',
+              currentLang,
+              GameMode.SOLO
+            ).then(text => {
               setCurrentText(text);
             });
           }}
@@ -2819,6 +2861,81 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showResultModal && lastResult && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-500">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="w-full max-w-2xl bg-[#0f172a] border border-white/10 rounded-[3rem] p-12 shadow-3xl relative overflow-hidden"
+          >
+            <div className={`absolute top-0 left-0 right-0 h-2 bg-gradient-to-r ${ACCENT_COLORS[profile.accentColor as keyof typeof ACCENT_COLORS]}`} />
+            
+            <div className="flex flex-col items-center text-center space-y-10">
+              <div className="space-y-2">
+                <div className="flex justify-center mb-4">
+                  <div className={`p-4 rounded-3xl bg-gradient-to-br ${ACCENT_COLORS[profile.accentColor as keyof typeof ACCENT_COLORS]} shadow-2xl shadow-indigo-500/20`}>
+                    <Trophy size={48} className="text-white" />
+                  </div>
+                </div>
+                <h3 className="text-4xl font-black text-white uppercase tracking-tighter">Race Complete!</h3>
+                <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Performance Summary</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-6 w-full">
+                <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 space-y-1">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Speed</p>
+                  <p className="text-4xl font-black text-white">{lastResult.wpm}<span className="text-xs text-slate-500 ml-1 uppercase">{speedUnit}</span></p>
+                </div>
+                <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 space-y-1">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Accuracy</p>
+                  <p className="text-4xl font-black text-emerald-400">{lastResult.accuracy}%</p>
+                </div>
+                <div className="p-6 bg-white/5 rounded-[2rem] border border-white/10 space-y-1">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Errors</p>
+                  <p className="text-4xl font-black text-rose-500">{lastResult.errors}</p>
+                </div>
+              </div>
+
+              {lastResult.coachNote && (
+                <div className="w-full p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-[2rem] text-left relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-3 opacity-20 group-hover:opacity-100 transition-opacity">
+                    <Sparkles size={20} className="text-indigo-400" />
+                  </div>
+                  <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    AI Coach Analysis
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed font-medium italic">"{lastResult.coachNote}"</p>
+                </div>
+              )}
+
+              <div className="flex gap-4 w-full pt-4">
+                <button 
+                  onClick={() => setShowResultModal(false)}
+                  className="flex-1 py-5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white font-black rounded-2xl text-[11px] uppercase tracking-[0.3em] transition-all border border-white/5"
+                >
+                  Close
+                </button>
+                <button 
+                  onClick={() => {
+                    const text = `I just typed ${lastResult.wpm} ${speedUnit} with ${lastResult.accuracy}% accuracy on ZippyType! 🚀`;
+                    if (navigator.share) {
+                      navigator.share({ title: 'ZippyType Result', text, url: window.location.href });
+                    } else {
+                      navigator.clipboard.writeText(`${text} ${window.location.href}`);
+                      alert("Result copied to clipboard!");
+                    }
+                  }}
+                  className={`flex-1 py-5 bg-gradient-to-r ${ACCENT_COLORS[profile.accentColor as keyof typeof ACCENT_COLORS]} text-white font-black rounded-2xl text-[11px] uppercase tracking-[0.3em] transition-all shadow-xl shadow-indigo-500/20 flex items-center justify-center gap-3`}
+                >
+                  <ExternalLink size={18} />
+                  Share Result
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
       )}
 

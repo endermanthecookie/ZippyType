@@ -1,22 +1,15 @@
 
 import { AIProvider } from "../types";
-import { fetchCoachNote as fetchGeminiNote } from "./geminiService";
-import { fetchGithubCoachNote } from "./githubService";
+import { generateCoachNote } from "./aiService";
 
 export const getCoachReport = async (
   provider: AIProvider,
-  token: string,
+  token: string | undefined,
+  isPro: boolean,
   wpm: number,
   accuracy: number,
   errors: number,
   missedChars: string[]
 ): Promise<string> => {
-  if (provider === AIProvider.GITHUB && token) {
-    try {
-      return await fetchGithubCoachNote(wpm, accuracy, errors, missedChars, token);
-    } catch (e) {
-      console.error("GitHub Coach failed, falling back to Gemini", e);
-    }
-  }
-  return await fetchGeminiNote(wpm, accuracy, errors, missedChars);
+  return await generateCoachNote(provider, token, isPro, wpm, accuracy, errors, missedChars);
 };

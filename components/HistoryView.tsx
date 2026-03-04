@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TypingResult } from '../types';
 import HistoryChart from './HistoryChart';
-import { Target, Activity, Calendar, TrendingUp, AlertTriangle, ShieldCheck, BrainCircuit } from 'lucide-react';
+import { Target, Activity, Calendar, TrendingUp, AlertTriangle, ShieldCheck, BrainCircuit, Play, X } from 'lucide-react';
 import StatsCard from './StatsCard';
+import { ReplayPlayer } from './ReplayPlayer';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface HistoryViewProps {
   history: TypingResult[];
@@ -13,6 +15,8 @@ interface HistoryViewProps {
 }
 
 const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKeys = [], isPro, onUpgradeClick }) => {
+  const [selectedReplay, setSelectedReplay] = useState<TypingResult | null>(null);
+
   const averageWpm = history.length > 0 
     ? Math.round(history.reduce((acc, curr) => acc + curr.wpm, 0) / history.length) 
     : 0;
@@ -26,12 +30,60 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
 
   return (
     <div className="space-y-8 animate-in zoom-in-95 duration-300">
+      <AnimatePresence>
+        {selectedReplay && selectedReplay.replayData && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-4xl space-y-6"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="space-y-1">
+                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">Race Replay</h3>
+                  <p className="text-xs text-slate-400 font-mono">{new Date(selectedReplay.date).toLocaleString()} • {selectedReplay.wpm} WPM</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedReplay(null)} 
+                  className="p-3 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-2xl transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <ReplayPlayer replayData={selectedReplay.replayData} text={selectedReplay.text || ""} />
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Speed</p>
+                  <p className="text-xl font-black text-white">{selectedReplay.wpm} <span className="text-[10px] text-slate-500 uppercase">{speedUnit}</span></p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Accuracy</p>
+                  <p className="text-xl font-black text-emerald-400">{selectedReplay.accuracy}%</p>
+                </div>
+                <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Errors</p>
+                  <p className="text-xl font-black text-rose-400">{selectedReplay.errors}</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="glass rounded-[2rem] p-10 border border-white/10 shadow-2xl space-y-8">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20">
             <Activity size={22} />
           </div>
-          <h2 className="text-base font-black text-[var(--text-main)] uppercase tracking-tighter">Performance Analytics</h2>
+          <h2 className="text-base font-black text-white uppercase tracking-tighter">Performance Analytics</h2>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -42,7 +94,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5">
-          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
             <TrendingUp size={14} className="text-indigo-400" /> Progression
           </h3>
           <div className="h-[300px] w-full">
@@ -51,14 +103,57 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5">
-          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+              <Play size={14} className="text-emerald-400" /> Recent Races
+            </h3>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Last 5 Sessions</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {history.slice(0, 5).map(h => (
+              <div key={h.id} className="group flex items-center justify-between p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
+                <div className="flex items-center gap-6">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{new Date(h.date).toLocaleDateString()}</span>
+                    <span className="text-xs font-mono text-slate-400">{new Date(h.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="h-8 w-px bg-white/10" />
+                  <div className="flex flex-col">
+                    <span className="text-lg font-black text-white">{h.wpm} <span className="text-[10px] text-slate-500 uppercase tracking-widest">{speedUnit}</span></span>
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{h.accuracy}% Acc</span>
+                  </div>
+                </div>
+                
+                {h.replayData && h.replayData.length > 0 ? (
+                  <button 
+                    onClick={() => setSelectedReplay(h)} 
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
+                  >
+                    <Play size={14} fill="currentColor" />
+                    Replay
+                  </button>
+                ) : (
+                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">No Replay</span>
+                )}
+              </div>
+            ))}
+            {history.length === 0 && (
+              <div className="p-10 text-center bg-white/5 rounded-2xl border border-dashed border-white/10">
+                <p className="text-xs font-black text-slate-500 uppercase tracking-widest">No race history found</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4 pt-6 border-t border-white/5">
+          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
             <AlertTriangle size={14} className="text-rose-400" /> Key Targets (Problem Keys)
           </h3>
           {problemKeys.length > 0 ? (
             <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
               {problemKeys.map(k => (
                 <div key={k} className="flex flex-col items-center justify-center p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl">
-                  <span className="text-2xl font-mono font-bold text-[var(--text-main)]">{k}</span>
+                  <span className="text-2xl font-mono font-bold text-white">{k}</span>
                   <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest mt-1">Focus</span>
                 </div>
               ))}
@@ -71,7 +166,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ history, speedUnit, problemKe
         </div>
 
         <div className="space-y-4 pt-6 border-t border-white/5 relative overflow-hidden">
-          <h3 className="text-xs font-black text-[var(--text-main)] uppercase tracking-widest flex items-center gap-2">
+          <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
             <BrainCircuit size={14} className="text-purple-400" /> Weak Keys Analysis
           </h3>
           

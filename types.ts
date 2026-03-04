@@ -16,7 +16,8 @@ export enum GameMode {
   ACCURACY_CHALLENGE = 'accuracy_challenge',
   WPM_RACE = 'wpm_race',
   CUSTOM_TEXT = 'custom_text',
-  CODE = 'code'
+  CODE = 'code',
+  ADAPTIVE = 'adaptive'
 }
 
 export enum CompetitiveType {
@@ -45,6 +46,7 @@ export enum AppView {
   REDIRECT = 'redirect',
   SEARCH = 'search',
   LEADERBOARD = 'leaderboard',
+  CLANS = 'clans',
   NOT_FOUND = 'not_found'
 }
 
@@ -125,6 +127,12 @@ export interface PowerUp {
   description: string;
 }
 
+export interface ReplayEvent {
+  timestamp: number;
+  key: string;
+  isCorrect: boolean;
+}
+
 export interface TypingResult {
   id: string;
   date: string;
@@ -135,9 +143,11 @@ export interface TypingResult {
   difficulty: Difficulty;
   mode: GameMode;
   textLength: number;
+  text?: string;
   errorMap?: Record<string, number>;
   keySpeeds?: Record<string, number[]>;
   coachNote?: string;
+  replayData?: ReplayEvent[];
 }
 
 export interface Achievement {
@@ -146,6 +156,28 @@ export interface Achievement {
   description: string;
   icon: string;
   unlockedAt?: string;
+}
+
+export interface Clan {
+  id: string;
+  name: string;
+  description: string;
+  tag: string;
+  owner_id: string;
+  created_at: string;
+  member_count: number;
+  total_wpm: number;
+  avatar_url?: string;
+}
+
+export interface ClanMember {
+  id: string;
+  clan_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  username?: string;
+  avatar?: string;
 }
 
 export interface PlayerState {
