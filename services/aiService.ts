@@ -11,7 +11,8 @@ export const generateText = async (
   problemKeys: string[],
   textLength: 'short' | 'medium' | 'long',
   language: string,
-  mode: GameMode
+  mode: GameMode,
+  subMode: 'daily' | 'speed' | 'accuracy' | 'themed' = 'daily'
 ): Promise<string> => {
   if (provider === AIProvider.GITHUB) {
     if (!token) throw new Error("GitHub token is required for GitHub AI provider.");
@@ -25,7 +26,7 @@ export const generateText = async (
          // For now, assume Gemini is available if not Pro, but maybe limited
     }
     const { fetchTypingText } = await import("./geminiService");
-    return await fetchTypingText(difficulty, category, seed, problemKeys, textLength, language, mode);
+    return await fetchTypingText(difficulty, category, seed, problemKeys, textLength, language, mode, subMode);
   }
 };
 

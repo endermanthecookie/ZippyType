@@ -9,7 +9,7 @@ interface AuthProps {
 
 const Auth: React.FC<AuthProps> = ({ onClose }) => {
   const [isLogin, setIsLogin] = useState(false);
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -53,10 +53,20 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
         setTimeout(() => reject(new Error("Request timed out. Please check your connection.")), 15000)
       );
 
+      let loginEmail = emailOrUsername;
+      if (isLogin && !emailOrUsername.includes('@')) {
+        // Try to resolve username to email
+        const { data: resolvedEmail, error: resolveErr } = await supabase.rpc('get_email_by_username', { username_arg: emailOrUsername.toLowerCase() });
+        if (resolveErr || !resolvedEmail) {
+          throw new Error("Username not found. Please use your email or check the spelling.");
+        }
+        loginEmail = resolvedEmail;
+      }
+
       const authPromise = isLogin 
-        ? supabase.auth.signInWithPassword({ email, password })
+        ? supabase.auth.signInWithPassword({ email: loginEmail, password })
         : supabase.auth.signUp({ 
-            email, 
+            email: emailOrUsername, 
             password,
             options: {
               data: {
@@ -120,15 +130,17 @@ const Auth: React.FC<AuthProps> = ({ onClose }) => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2 relative group">
-            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] ml-2 block">Email Address</label>
+            <label className="text-[9px] font-black uppercase text-slate-500 tracking-[0.3em] ml-2 block">
+              {isLogin ? 'Email or Username' : 'Email Address'}
+            </label>
             <div className="relative">
               <input
-                type="email"
+                type={isLogin ? "text" : "email"}
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={emailOrUsername}
+                onChange={(e) => setEmailOrUsername(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-4 px-6 text-white focus:outline-none transition-all font-sans text-xs shadow-inner relative z-10"
-                placeholder="user@example.com"
+                placeholder={isLogin ? "pilot_123 or user@example.com" : "user@example.com"}
               />
               <div className="absolute inset-0 border-2 border-indigo-500 rounded-xl scale-x-0 group-focus-within:scale-x-100 transition-transform duration-300 origin-center z-0" />
             </div>

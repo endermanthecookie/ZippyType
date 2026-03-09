@@ -144,6 +144,7 @@ export interface TypingResult {
   difficulty: Difficulty;
   mode: GameMode;
   textLength: number;
+  words?: number;
   text?: string;
   errorMap?: Record<string, number>;
   keySpeeds?: Record<string, number[]>;

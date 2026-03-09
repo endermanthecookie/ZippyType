@@ -9,13 +9,15 @@ export const fetchTypingText = async (
   problemKeys: string[] = [],
   textLength: 'short' | 'medium' | 'long' = 'medium',
   language: string = 'en',
-  mode: GameMode = GameMode.SOLO
+  mode: GameMode = GameMode.SOLO,
+  subMode: 'daily' | 'speed' | 'accuracy' | 'themed' = 'daily'
 ): Promise<string> => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is missing");
   const ai = new GoogleGenAI({ apiKey });
 
   if (mode === GameMode.CODE) {
+    // ... existing code logic ...
     const lang = ['javascript', 'python', 'typescript', 'java', 'c++'][Math.floor(Math.random() * 5)];
     const prompt = `Generate a valid, clean, and idiomatic ${lang} code snippet.
     It should be approximately ${textLength === 'short' ? '2-3' : textLength === 'medium' ? '4-6' : '8-12'} lines of code.
@@ -32,7 +34,6 @@ export const fetchTypingText = async (
         throw new Error("Empty response from Gemini Core.");
       }
       
-      // Sanitize code: replace tabs with 2 spaces, remove markdown blocks if any remain
       let code = response.text.trim();
       code = code.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
       code = code.replace(/\t/g, '  ');
@@ -49,7 +50,17 @@ export const fetchTypingText = async (
        Ensure the generated text contains an abnormally high frequency of these specific characters to help them practice.`
     : "";
 
-  const theme = category !== "General" ? category : "fascinating trivia or life philosophy";
+  let theme = category !== "General" ? category : "fascinating trivia or life philosophy";
+  let modeSpecificPrompt = "";
+
+  if (subMode === 'speed') {
+    modeSpecificPrompt = "Focus on short, common, high-frequency words that are easy to type fast. Avoid complex punctuation.";
+    theme = "common English words and phrases";
+  } else if (subMode === 'accuracy') {
+    modeSpecificPrompt = "Focus on complex words, unusual letter combinations, numbers, and diverse punctuation to test precision.";
+  } else if (subMode === 'themed') {
+    modeSpecificPrompt = `Focus strictly on the theme of "${category}". Use vocabulary specific to this topic.`;
+  }
 
   let lengthConstraint = "";
   if (textLength === 'short') lengthConstraint = "exactly 6 to 8 words total";
@@ -60,6 +71,7 @@ export const fetchTypingText = async (
   The language of the text MUST be: ${language}.
   ${seed ? `Base the content loosely on: ${seed}.` : ''}
   ${drillContext}
+  ${modeSpecificPrompt}
   
   CRITICAL CONSTRAINTS:
   - You MUST generate a sentence that is ${lengthConstraint}. 

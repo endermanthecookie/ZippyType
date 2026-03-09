@@ -6,8 +6,8 @@ import {
   Trophy, Zap, Target, RotateCcw, Play, Rocket, Settings as SettingsIcon,
   Gamepad2, LogOut, X, Volume2, VolumeX, Github, Globe, User, EyeOff, Eye, 
   Activity, Dna, Clock, Lock, ShieldAlert, AlertCircle, Timer, Download, Upload, FileJson,
-  BookOpen, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search, FileText,
-  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown, Users, Code
+  BookOpen, Book, ChevronRight, Sparkles, ExternalLink, Info, HelpCircle, CheckCircle2, Search, FileText,
+  Keyboard as KeyboardIcon, Copy, Sun, Moon, ShieldCheck, AlertTriangle, Gift, Loader2, Crown, Users, Code, MoreHorizontal
 } from 'lucide-react';
 import { useTranslation } from './src/LanguageContext';
 import { Difficulty, GameMode, CompetitiveType, TypingResult, PlayerState, PowerUp, PowerUpType, AppView, AIProvider, UserProfile, UserPreferences, PomodoroSettings, SoundProfile, KeyboardLayout, Achievement, Quest, ReplayEvent } from './types';
@@ -43,6 +43,7 @@ import Matchmaking from './components/Matchmaking';
 import MultiplayerRace from './components/MultiplayerRace';
 import MultiplayerLobby from './components/MultiplayerLobby';
 import DailyQuests from './components/DailyQuests';
+import AccountSettings from './components/AccountSettings';
 import { BuyMeACoffeeWidget } from './components/BuyMeACoffeeWidget';
 import confetti from 'canvas-confetti';
 
@@ -343,6 +344,8 @@ const App: React.FC = () => {
   const [userInput, setUserInput] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.EASY);
   const [gameMode, setGameMode] = useState<GameMode>(GameMode.SOLO);
+  const [gameSubMode, setGameSubMode] = useState<'daily' | 'speed' | 'accuracy' | 'themed'>('daily');
+  const [selectedTheme, setSelectedTheme] = useState<string>('General');
   const [competitiveType, setCompetitiveType] = useState<CompetitiveType>(CompetitiveType.BOTS);
   const [isActive, setIsActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -427,8 +430,11 @@ const App: React.FC = () => {
       { id: 'first_race', title: 'First Steps', description: 'Complete your first typing race', icon: '🏁' },
       { id: 'speed_demon_50', title: 'Speed Demon I', description: 'Reach 50 WPM', icon: '🔥' },
       { id: 'speed_demon_100', title: 'Speed Demon II', description: 'Reach 100 WPM', icon: '⚡' },
+      { id: 'speed_demon_150', title: 'Speed Demon III', description: 'Reach 150 WPM', icon: '🚀' },
       { id: 'perfect_accuracy', title: 'Sniper', description: 'Complete a race with 100% accuracy', icon: '🎯' },
-      { id: 'marathoner', title: 'Marathoner', description: 'Type 1000 words in total', icon: '🏃' }
+      { id: 'marathoner', title: 'Marathoner', description: 'Type 1000 words in total', icon: '🏃' },
+      { id: 'consistency_king', title: 'Consistency King', description: 'Maintain 95%+ accuracy over 10 races', icon: '👑' },
+      { id: 'night_owl', title: 'Night Owl', description: 'Complete a race between 12 AM and 4 AM', icon: '🦉' }
     ];
   });
   const [easterEggTriggered, setEasterEggTriggered] = useState(false);
@@ -443,7 +449,20 @@ const App: React.FC = () => {
       if (a.id === 'first_race') unlocked = true;
       if (a.id === 'speed_demon_50' && result.wpm >= 50) unlocked = true;
       if (a.id === 'speed_demon_100' && result.wpm >= 100) unlocked = true;
+      if (a.id === 'speed_demon_150' && result.wpm >= 150) unlocked = true;
       if (a.id === 'perfect_accuracy' && result.accuracy === 100) unlocked = true;
+      if (a.id === 'marathoner') {
+        const totalWords = history.reduce((acc, r) => acc + (r.words || (r.textLength / 5)), 0) + result.words;
+        if (totalWords >= 1000) unlocked = true;
+      }
+      if (a.id === 'consistency_king') {
+        const last10 = [...history.slice(0, 9), result];
+        if (last10.length >= 10 && last10.every(r => r.accuracy >= 95)) unlocked = true;
+      }
+      if (a.id === 'night_owl') {
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 4) unlocked = true;
+      }
       
       if (unlocked) {
         updated = true;
@@ -1042,12 +1061,13 @@ const App: React.FC = () => {
           githubToken,
           profile.is_pro || false,
           customDiff || difficulty,
-          seed || "General",
+          gameSubMode === 'themed' ? selectedTheme : (seed || "General"),
           seed,
           currentMode === GameMode.ADAPTIVE ? problemKeys : [],
           textLength,
           currentLang,
-          currentMode
+          currentMode,
+          gameSubMode
         );
       };
 
@@ -1140,12 +1160,13 @@ const App: React.FC = () => {
           githubToken,
           profile.is_pro || false,
           difficulty,
-          customTopic || "General",
+          gameSubMode === 'themed' ? selectedTheme : (customTopic || "General"),
           customTopic,
           [],
           textLength,
           currentLang,
-          GameMode.SOLO
+          GameMode.SOLO,
+          gameSubMode
         );
         const normalized = normalizeText(text.trim());
         
@@ -1363,6 +1384,7 @@ const App: React.FC = () => {
         difficulty, 
         mode: mode, 
         textLength: currentText.length, 
+        words: currentText.trim().split(/\s+/).length,
         text: currentText,
         errorMap, 
         keySpeeds,
@@ -1536,7 +1558,7 @@ const App: React.FC = () => {
 
   const checkRestricted = (targetView: AppView) => {
     const isGuest = !user || user.is_ip_persistent;
-    if (isGuest && (targetView === AppView.PROFILE || targetView === AppView.SETTINGS || targetView === AppView.HISTORY)) { 
+    if (isGuest && (targetView === AppView.PROFILE || targetView === AppView.SETTINGS || targetView === AppView.HISTORY || targetView === AppView.CLANS)) { 
       setShowRestrictedModal(true); 
       return; 
     }
@@ -1544,6 +1566,7 @@ const App: React.FC = () => {
     if (targetView === AppView.PROFILE) navigate('/profile');
     else if (targetView === AppView.HISTORY) navigate('/history');
     else if (targetView === AppView.SETTINGS) navigate('/settings');
+    else if (targetView === AppView.CLANS) navigate('/clans');
   };
 
   const playSound = (type: 'correct' | 'error' | 'finish' | 'click' | 'achievement') => {
@@ -1892,37 +1915,44 @@ const App: React.FC = () => {
             </div>
           </div>
           <nav className="flex items-center gap-4 w-full md:w-auto">
-            <div className="flex bg-black/50 p-1.5 rounded-2xl border border-white/5 shadow-lg overflow-x-auto no-scrollbar max-w-full">
+            <div className="flex bg-black/50 p-1.5 rounded-2xl border border-white/5 shadow-lg max-w-full">
               <button onClick={() => navigate('/')} className={`p-3 rounded-xl transition-all ${currentView === AppView.GAME ? `bg-indigo-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Game Home"><Gamepad2 size={20} /></button>
-              <button onClick={() => navigate('/tutorial')} className={`p-3 rounded-xl transition-all ${currentView === AppView.TUTORIALS ? `bg-amber-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Tactical Academy"><BookOpen size={20} /></button>
               <button onClick={() => checkRestricted(AppView.PROFILE)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.PROFILE ? `bg-emerald-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Profile">
                 <User size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
-              <button onClick={() => checkRestricted(AppView.HISTORY)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.HISTORY ? `bg-rose-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="History">
-                <Activity size={20} />
-                {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
-              </button>
-              <button onClick={() => navigate('/search')} className={`p-3 rounded-xl transition-all ${currentView === AppView.SEARCH ? `bg-cyan-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Search">
-                <Search size={20} />
-              </button>
               <button onClick={() => navigate('/leaderboard')} className={`p-3 rounded-xl transition-all ${currentView === AppView.LEADERBOARD ? `bg-amber-500 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Leaderboard">
                 <Trophy size={20} />
               </button>
-              <button onClick={() => navigate('/clans')} className={`p-3 rounded-xl transition-all ${currentView === AppView.CLANS ? `bg-indigo-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Clans">
+              <button onClick={() => checkRestricted(AppView.CLANS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.CLANS ? `bg-indigo-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Clans">
                 <Users size={20} />
-              </button>
-              <button onClick={() => checkRestricted(AppView.SETTINGS)} className={`p-3 rounded-xl transition-all relative ${currentView === AppView.SETTINGS ? `bg-purple-600 text-white shadow-lg` : 'text-slate-500 hover:text-white'}`} title="Settings">
-                <SettingsIcon size={20} />
                 {(!user || user.is_ip_persistent) && <div className="absolute top-1 right-1 bg-slate-900/80 rounded-full p-0.5"><Lock size={10} className="text-slate-400" /></div>}
               </button>
+            </div>
+            
+            <div className="relative group/more">
+              <button className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-white transition-all shadow-md"><MoreHorizontal size={20} /></button>
+              <div className="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl opacity-0 invisible group-hover/more:opacity-100 group-hover/more:visible transition-all z-[100] p-2">
+                <button onClick={() => navigate('/tutorial')} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">
+                  <BookOpen size={16} /> Academy
+                </button>
+                <button onClick={() => checkRestricted(AppView.HISTORY)} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">
+                  <Activity size={16} /> History
+                </button>
+                <button onClick={() => navigate('/search')} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">
+                  <Search size={16} /> Search
+                </button>
+                <button onClick={() => checkRestricted(AppView.SETTINGS)} className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all text-xs font-bold uppercase tracking-widest">
+                  <SettingsIcon size={16} /> Settings
+                </button>
+              </div>
+            </div>
               {!profile.is_pro && user && !user.is_ip_persistent && (
                 <button onClick={() => navigate('/settings/billing')} className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2">
                   <Crown size={14} />
                   {EN.upgradeToPro}
                 </button>
               )}
-            </div>
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-white transition-all shadow-md">{soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
             {user ? (<button onClick={() => supabase.auth.signOut()} className="p-3 bg-black/50 border border-white/5 rounded-xl text-slate-500 hover:text-rose-400 transition-all shadow-md"><LogOut size={20} /></button>) : (<button onClick={() => navigate('/login')} className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-[9px] uppercase tracking-widest transition-all shadow-xl shadow-indigo-500/20 active:scale-95">{EN.login}</button>)}
           </nav>
@@ -1939,6 +1969,36 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3"><div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl"><User size={22} /></div><h2 className="text-base font-black text-white uppercase tracking-tighter">{EN.profileDetails}</h2></div>
             
             <DailyQuests quests={profile.quests || []} />
+
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Trophy size={20} className="text-amber-500" />
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Pilot Achievements</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {achievements.map(a => (
+                  <div 
+                    key={a.id} 
+                    className={`p-4 rounded-2xl border transition-all flex flex-col items-center text-center gap-2 ${
+                      a.unlockedAt 
+                        ? 'bg-indigo-500/10 border-indigo-500/30' 
+                        : 'bg-black/20 border-white/5 opacity-40 grayscale'
+                    }`}
+                  >
+                    <span className="text-3xl">{a.icon}</span>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-white uppercase tracking-widest">{a.title}</p>
+                      <p className="text-[8px] font-medium text-slate-500 leading-tight">{a.description}</p>
+                    </div>
+                    {a.unlockedAt && (
+                      <div className="mt-1 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full text-[7px] font-black uppercase tracking-widest">
+                        Unlocked
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               <div className="space-y-6">
@@ -2159,6 +2219,22 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     <ChevronRight size={20} className="text-slate-700 group-hover:text-orange-400 transition-colors" />
+                  </button>
+
+                  <button 
+                    onClick={() => { setActiveSettingsTab('account'); navigate('/settings/account'); }}
+                    className="flex items-center justify-between p-6 bg-black/40 hover:bg-rose-500/10 border border-white/5 hover:border-rose-500/30 rounded-2xl transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-white/5 rounded-xl group-hover:scale-110 transition-transform">
+                        <ShieldCheck className="text-rose-400" size={20} />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Account & Security</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide">Manage profile, username, and password</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-700 group-hover:text-rose-400 transition-colors" />
                   </button>
 
                   <button 
@@ -2409,6 +2485,14 @@ const App: React.FC = () => {
                     saveStatus={saveStatus}
                   />
                 )}
+
+                {activeSettingsTab === 'account' && (
+                  <AccountSettings 
+                    user={user}
+                    profile={profile}
+                    setProfile={setProfile}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -2499,6 +2583,47 @@ const App: React.FC = () => {
               </div>
 
               <AnimatePresence mode="wait">
+                {gameMode === GameMode.SOLO && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex flex-col items-center gap-6 w-full"
+                  >
+                    <div className="glass p-1.5 rounded-2xl flex gap-2 border border-white/10 shadow-xl overflow-x-auto no-scrollbar max-w-full">
+                      {[
+                        { id: 'daily', label: 'Daily', icon: <Sparkles size={14} /> },
+                        { id: 'speed', label: 'Speed Round', icon: <Zap size={14} /> },
+                        { id: 'accuracy', label: 'Accuracy', icon: <Target size={14} /> },
+                        { id: 'themed', label: 'Themed', icon: <Book size={14} /> }
+                      ].map(sm => (
+                        <button 
+                          key={sm.id}
+                          onClick={() => setGameSubMode(sm.id as any)}
+                          className={`px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${gameSubMode === sm.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
+                        >
+                          {sm.icon}
+                          {sm.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {gameSubMode === 'themed' && (
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-full pb-2">
+                        {['General', 'Coding', 'Nature', 'Space', 'History', 'Science', 'Literature', 'Movies'].map(t => (
+                          <button 
+                            key={t}
+                            onClick={() => setSelectedTheme(t)}
+                            className={`px-4 py-2 rounded-lg text-[8px] font-bold uppercase tracking-widest transition-all border ${selectedTheme === t ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-black/20 border-white/5 text-slate-500 hover:text-white'}`}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
                 {gameMode === GameMode.COMPETITIVE && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
