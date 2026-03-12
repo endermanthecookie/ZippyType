@@ -80,6 +80,11 @@ async function startServer() {
   // Middleware to parse JSON bodies
   app.use(express.json());
 
+  // Serve legacy.html
+  app.get(['/legacy', '/legacy.html'], (req, res) => {
+    res.sendFile(path.join(__dirname, 'legacy.html'));
+  });
+
   // Discord OAuth Routes
   app.get('/api/auth/discord/url', (req, res) => {
     const redirectUri = `${req.headers.origin || process.env.APP_URL || 'http://localhost:3000'}/api/auth/discord/callback`;

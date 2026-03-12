@@ -10,6 +10,8 @@ interface GeneralSettingsProps {
   setKeyboardLayout: (l: KeyboardLayout) => void;
   musicVolume: number;
   setMusicVolume: (v: number) => void;
+  musicEnabled: boolean;
+  setMusicEnabled: (v: boolean) => void;
   sfxVolume: number;
   setSfxVolume: (v: number) => void;
   userId?: string;
@@ -49,6 +51,8 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   setKeyboardLayout,
   musicVolume,
   setMusicVolume,
+  musicEnabled,
+  setMusicEnabled,
   sfxVolume,
   setSfxVolume,
   userId,
@@ -154,6 +158,19 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({
         </h3>
         
         <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-black/20 rounded-xl border border-white/5">
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">Enable Music</span>
+              <p className="text-[9px] text-slate-500">Toggle in-game background music</p>
+            </div>
+            <button 
+              onClick={() => setMusicEnabled(!musicEnabled)}
+              className={`w-10 h-5 rounded-full transition-all relative ${musicEnabled ? 'bg-indigo-600' : 'bg-slate-700'}`}
+            >
+              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${musicEnabled ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('musicVolume')}</span>

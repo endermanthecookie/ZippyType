@@ -204,6 +204,7 @@ const App: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [user, setUser] = useState<any>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(() => localStorage.getItem('music_enabled') !== 'false');
   const [musicVolume, setMusicVolume] = useState(() => Number(localStorage.getItem('music_volume') || '0.15'));
   const [sfxVolume, setSfxVolume] = useState(() => Number(localStorage.getItem('sfx_volume') || '0.8'));
   const [isZen, setIsZen] = useState(() => localStorage.getItem('zen_mode') === 'true');
@@ -595,7 +596,7 @@ const App: React.FC = () => {
   };
 
   const playNextSong = () => {
-    if (!bgmRef.current || !soundEnabled) return;
+    if (!bgmRef.current || !musicEnabled) return;
     const nextIndex = (currentSongIndexRef.current + 1) % songs.length;
     currentSongIndexRef.current = nextIndex;
     bgmRef.current.src = songs[nextIndex];
@@ -614,7 +615,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleFirstInteraction = () => {
       initAudio();
-      if (bgmRef.current && (bgmRef.current.paused || bgmRef.current.src === "") && soundEnabled) {
+      if (bgmRef.current && (bgmRef.current.paused || bgmRef.current.src === "") && musicEnabled) {
         playNextSong();
       }
       window.removeEventListener('click', handleFirstInteraction);
@@ -626,11 +627,11 @@ const App: React.FC = () => {
       window.removeEventListener('click', handleFirstInteraction);
       window.removeEventListener('keydown', handleFirstInteraction);
     };
-  }, [soundEnabled]);
+  }, [musicEnabled]);
 
   useEffect(() => {
     if (bgmRef.current) {
-      if (soundEnabled) {
+      if (musicEnabled) {
         if (bgmRef.current.paused && bgmRef.current.src) {
           bgmRef.current.play().catch(() => {});
         }
@@ -638,7 +639,8 @@ const App: React.FC = () => {
         bgmRef.current.pause();
       }
     }
-  }, [soundEnabled]);
+    localStorage.setItem('music_enabled', musicEnabled.toString());
+  }, [musicEnabled]);
 
   useEffect(() => {
     if (bgmGainRef.current && audioCtx.current) {
@@ -656,11 +658,15 @@ const App: React.FC = () => {
     localStorage.setItem('sfx_volume', sfxVolume.toString());
   }, [sfxVolume]);
   useEffect(() => {
-    if (window.location.pathname === '/pandc') {
+    const path = window.location.pathname;
+    if (path === '/pandc') {
       setCurrentView(AppView.PRIVACY);
-    } else if (window.location.pathname === '/redirect') {
+    } else if (path === '/redirect') {
       setCurrentView(AppView.REDIRECT);
-    } else if (window.location.pathname !== '/') {
+    } else if (path === '/legacy' || path === '/legacy.html') {
+      // Let the server handle this or just don't show Not Found
+      return;
+    } else if (path !== '/') {
       setCurrentView(AppView.NOT_FOUND);
     }
   }, []);
@@ -1818,7 +1824,7 @@ const App: React.FC = () => {
       </div>
       {showAuth && <Auth onClose={() => setShowAuth(false)} />}
       {pomodoroSettings.enabled && <PomodoroTimer settings={pomodoroSettings} />}
-      <MusicControls />
+      <MusicControls isPlaying={musicEnabled} onToggle={() => setMusicEnabled(!musicEnabled)} />
       <BuyMeACoffeeWidget offsetBottom={user && pomodoroSettings.enabled ? 200 : 18} />
       
       {showGeminiError && (
@@ -2275,6 +2281,8 @@ const App: React.FC = () => {
                     setKeyboardLayout={(l) => { setKeyboardLayout(l); localStorage.setItem('keyboard_layout', l); }}
                     musicVolume={musicVolume}
                     setMusicVolume={(v) => { setMusicVolume(v); localStorage.setItem('music_volume', v.toString()); }}
+                    musicEnabled={musicEnabled}
+                    setMusicEnabled={setMusicEnabled}
                     sfxVolume={sfxVolume}
                     setSfxVolume={(v) => { setSfxVolume(v); localStorage.setItem('sfx_volume', v.toString()); }}
                     userId={user?.id}
