@@ -1727,18 +1727,21 @@ const App: React.FC = () => {
           backdropFilter: 'blur(20px)'
         }}>
           <div style={{
-            width: '64px',
-            height: '64px',
-            background: '#f43f5e',
-            borderRadius: '20px',
+            width: '80px',
+            height: '80px',
+            background: 'rgba(244, 63, 94, 0.1)',
+            borderRadius: '24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 24px',
-            position: 'relative'
+            border: '1px solid rgba(244, 63, 94, 0.2)'
           }}>
-            <div style={{ width: '32px', height: '4px', background: 'white', transform: 'rotate(45deg)', position: 'absolute' }}></div>
-            <div style={{ width: '32px', height: '4px', background: 'white', transform: 'rotate(-45deg)', position: 'absolute' }}></div>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
           </div>
           <h1 style={{ fontSize: '28px', marginBottom: '16px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#ffffff' }}>Browser Not Supported</h1>
           <p style={{ fontSize: '16px', opacity: 0.7, lineHeight: 1.6, marginBottom: '32px', fontWeight: 500 }}>Your browser version is too old to run ZippyType. Please update to a modern version for the best experience.</p>

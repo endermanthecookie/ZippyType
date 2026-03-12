@@ -38,7 +38,18 @@
         .hidden { display: none !important; }
         
         /* Auth Section */
-        #auth-section { text-align: center; }
+        #auth-section { text-align: center; max-width: 400px; margin: 0 auto; }
+        .auth-form { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+        .auth-input {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+        }
+        .auth-input:focus { border-color: var(--accent); }
         button {
             background: var(--accent);
             color: white;
@@ -122,8 +133,14 @@
         <div id="auth-section">
             <h1>Login Required</h1>
             <p style="color: var(--text-muted); margin-bottom: 30px;">Legacy mode requires an account to practice.</p>
-            <button onclick="signInWithGoogle()">SIGN IN WITH GOOGLE</button>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 20px;">Note: This uses Supabase Auth via popup.</p>
+            
+            <div class="auth-form">
+                <input type="text" id="login-email" class="auth-input" placeholder="Email or Username">
+                <input type="password" id="login-password" class="auth-input" placeholder="Password">
+                <button onclick="signIn()">SIGN IN</button>
+            </div>
+            
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 20px;">Use your ZippyType credentials to log in.</p>
         </div>
 
         <!-- Game Section -->
@@ -254,14 +271,41 @@
             }
         }
 
-        async function signInWithGoogle() {
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: 'google',
-                options: {
-                    redirectTo: window.location.href
+        async function signIn() {
+            const emailOrUsername = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (!emailOrUsername || !password) {
+                alert("Please enter both email/username and password.");
+                return;
+            }
+
+            let loginEmail = emailOrUsername;
+            
+            // If it's a username, we need to resolve it to an email
+            // (Mirroring the logic in Auth.tsx)
+            if (!emailOrUsername.includes('@')) {
+                const { data: resolvedEmail, error: resolveErr } = await supabaseClient.rpc('get_email_by_username', { 
+                    username_arg: emailOrUsername.toLowerCase() 
+                });
+                
+                if (resolveErr || !resolvedEmail) {
+                    alert("Could not find user with that username.");
+                    return;
                 }
+                loginEmail = resolvedEmail;
+            }
+
+            const { error } = await supabaseClient.auth.signInWithPassword({
+                email: loginEmail,
+                password: password
             });
-            if (error) alert(error.message);
+
+            if (error) {
+                alert(error.message);
+            } else {
+                checkUser();
+            }
         }
 
         async function signOut() {
