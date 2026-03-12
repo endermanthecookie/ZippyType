@@ -782,11 +782,17 @@ const App: React.FC = () => {
 
             fetchHistory(newUser.id);
             const dbAchievements = await fetchAchievements(newUser.id);
-            if (dbAchievements) {
-              setAchievements(dbAchievements);
-              localStorage.setItem('zippy_achievements', JSON.stringify(dbAchievements));
-            } else {
-              // If no achievements in DB, save local ones to DB
+            if (dbAchievements && Array.isArray(dbAchievements)) {
+              setAchievements(prev => {
+                const merged = prev.map(a => {
+                  const found = dbAchievements.find((da: any) => da.achievement_id === a.id);
+                  return found ? { ...a, unlockedAt: found.unlocked_at } : a;
+                });
+                localStorage.setItem('zippy_achievements', JSON.stringify(merged));
+                return merged;
+              });
+            } else if (!dbAchievements) {
+              // If no achievements in DB (or error), save local ones to DB
               saveAchievements(newUser.id, achievements);
             }
             setHasUsedSolo(null);

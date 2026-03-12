@@ -116,8 +116,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({
 
       // 4. Load achievements
       const ach = await fetchAchievements(userData.user_id);
-      if (ach) {
-        setUserAchievements(ach);
+      if (ach && Array.isArray(ach)) {
+        setUserAchievements(prev => prev.map(a => {
+          const found = ach.find((da: any) => da.achievement_id === a.id);
+          return found ? { ...a, unlockedAt: found.unlocked_at } : a;
+        }));
       }
     } catch (err) {
       console.error(err);

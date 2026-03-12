@@ -7,16 +7,24 @@ const MusicControls: React.FC = () => {
   const LOFI_STREAM_URL = "https://stream.zeno.fm/0r0xa792kwzuv"; // A public lofi stream
 
   useEffect(() => {
-    if (audioRef.current) {
+    let isCancelled = false;
+    const audio = audioRef.current;
+    if (audio) {
       if (isPlaying) {
-        audioRef.current.play().catch(err => {
-          console.error("Playback failed:", err);
-          setIsPlaying(false);
-        });
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            if (!isCancelled) {
+              console.error("Playback failed:", err);
+              setIsPlaying(false);
+            }
+          });
+        }
       } else {
-        audioRef.current.pause();
+        audio.pause();
       }
     }
+    return () => { isCancelled = true; };
   }, [isPlaying]);
 
   return (

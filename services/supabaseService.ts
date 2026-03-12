@@ -363,12 +363,11 @@ export const fetchAchievements = async (userId: string) => {
   try {
     const { data, error } = await supabase
       .from('user_achievements')
-      .select('achievements')
-      .eq('user_id', userId)
-      .maybeSingle();
+      .select('achievement_id, unlocked_at')
+      .eq('user_id', userId);
     
     if (error) throw error;
-    return data?.achievements || null;
+    return data;
   } catch (e) {
     console.error('Failed to fetch achievements', e);
     return null;
@@ -377,9 +376,19 @@ export const fetchAchievements = async (userId: string) => {
 
 export const saveAchievements = async (userId: string, achievements: any[]) => {
   try {
+    const unlocked = achievements
+      .filter(a => a.unlockedAt)
+      .map(a => ({
+        user_id: userId,
+        achievement_id: a.id,
+        unlocked_at: a.unlockedAt
+      }));
+    
+    if (unlocked.length === 0) return;
+
     const { error } = await supabase
       .from('user_achievements')
-      .upsert({ user_id: userId, achievements, updated_at: new Date().toISOString() });
+      .upsert(unlocked, { onConflict: 'user_id,achievement_id' });
     
     if (error) throw error;
   } catch (e) {
