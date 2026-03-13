@@ -41,7 +41,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ currentUser, userProfile }) =
         const rankedData = data.map((entry: any, index: number) => ({
           ...entry,
           rank: index + 1,
-          handle: entry.username || 'unknown'
+          handle: entry.handle || entry.username || 'unknown'
         }));
         setEntries(rankedData);
 
@@ -148,9 +148,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ currentUser, userProfile }) =
                           <User size={16} />
                         </div>
                         <span className={`font-bold ${entry.user_id === currentUser?.id ? 'text-indigo-400' : 'text-slate-200'}`}>
-                          <span className="text-slate-500 font-mono mr-2">@{entry.handle}</span>
+                          <span className="text-slate-500 font-mono mr-2">
+                            @{entry.user_id === currentUser?.id ? (userProfile.handle || entry.handle) : entry.handle}
+                          </span>
                           <span className="opacity-50 mx-2">|</span>
-                          {entry.username}
+                          {entry.user_id === currentUser?.id ? (
+                            (userProfile.username && userProfile.username !== 'Guest Player') ? userProfile.username : (userProfile.handle || entry.username)
+                          ) : entry.username}
                         </span>
                         {entry.user_id === currentUser?.id && (
                           <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[9px] font-bold uppercase tracking-wider border border-indigo-500/30">

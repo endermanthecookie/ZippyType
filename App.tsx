@@ -762,7 +762,12 @@ const App: React.FC = () => {
               if (prefs.keyboard_layout) setKeyboardLayout(prefs.keyboard_layout);
               if (prefs.speed_unit) setSpeedUnit(prefs.speed_unit);
             } else {
-              setProfile(prev => ({ ...prev, is_pro: isPro }));
+              const emailPrefix = newUser.email?.split('@')[0] || 'Pilot';
+              setProfile(prev => ({ 
+                ...prev, 
+                username: prev.username === 'Guest Player' ? emailPrefix : prev.username,
+                is_pro: isPro 
+              }));
             }
 
             // Ensure username exists in public.usernames and sync to profile
@@ -1466,11 +1471,11 @@ const App: React.FC = () => {
       const scoreIncrement = Math.max(0, currentText.length - errors);
       if (scoreIncrement > 0) {
         try {
-          // Ensure we have a username
-          const username = profile.username || user.email?.split('@')[0] || 'Pilot';
+          // Ensure we have a username - prioritize handle for leaderboard identity
+          const leaderboardName = profile.handle || profile.username || user.email?.split('@')[0] || 'Pilot';
           await supabase.rpc('update_leaderboard_score', { 
             p_user_id: user.id, 
-            p_username: username, 
+            p_username: leaderboardName, 
             p_score_increment: scoreIncrement 
           });
         } catch (err) {

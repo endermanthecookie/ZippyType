@@ -5,6 +5,52 @@ import { UserPreferences, AIProvider, Difficulty } from '../types';
 const supabaseUrl = 'https://ewdrrhdsxjrhxyzgjokg.supabase.co';
 const supabaseAnonKey = 'sb_publishable_VOd9I9_yUqlHFPBfkoCtfA_FtttMyKc';
 
+// --- Generic Retry Wrapper ---
+function isNetworkError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('fetch') || 
+         msg.includes('network') ||
+         msg.includes('timeout') ||
+         msg.includes('connection') ||
+         err.status === 502 || err.status === 503 || err.status === 504 ||
+         err.code === 'PGRST301' || err.code === '08006' || err.code === '08001';
+}
+
+async function withRetry<T>(fn: () => T | Promise<T>, retries = 5, delay = 1000): Promise<T> {
+  let lastError: any;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const result = await fn();
+      
+      // Check if it's a Supabase-style error response (data/error object)
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        const err = result.error as any;
+        if (isNetworkError(err)) {
+          console.warn(`Supabase call returned network error (Attempt ${i + 1}/${retries}): ${err.message || 'Unknown error'}. Retrying...`);
+          if (i < retries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1) + Math.random() * 500));
+            continue;
+          }
+        }
+      }
+      
+      return result;
+    } catch (err: any) {
+      lastError = err;
+      if (isNetworkError(err)) {
+        console.warn(`Supabase call threw network error (Attempt ${i + 1}/${retries}): ${err.message || 'Unknown error'}. Retrying...`);
+        if (i < retries - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay * (i + 1) + Math.random() * 500));
+          continue;
+        }
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- Encryption Helpers ---
@@ -102,7 +148,7 @@ async function decryptToken(encryptedData: string, userId: string): Promise<stri
 export const saveUserPreferences = async (userId: string, prefs: UserPreferences) => {
   const encryptedGithubToken = await encryptToken(prefs.github_token, userId);
   
-  const { error } = await supabase
+  const { error } = await withRetry(() => supabase
     .from('user_preferences')
     .upsert({ 
       user_id: userId, 
@@ -117,7 +163,7 @@ export const saveUserPreferences = async (userId: string, prefs: UserPreferences
       sound_profile: prefs.sound_profile,
       keyboard_layout: prefs.keyboard_layout,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
+    }, { onConflict: 'user_id' }));
   
   if (error) {
     console.error('Error saving preferences:', error);
@@ -128,11 +174,13 @@ export const saveUserPreferences = async (userId: string, prefs: UserPreferences
 
 export const loadUserPreferences = async (userId: string): Promise<UserPreferences | null> => {
   try {
-    const { data, error } = await supabase
-      .from('user_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data, error } = await withRetry(() => 
+      supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle()
+    );
 
     if (error || !data) return null;
 
@@ -158,11 +206,13 @@ export const loadUserPreferences = async (userId: string): Promise<UserPreferenc
 
 export const checkProStatus = async (userId: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
-      .from('zippypro')
-      .select('is_active, months_remaining')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data, error } = await withRetry(() => 
+      supabase
+        .from('zippypro')
+        .select('is_active, months_remaining')
+        .eq('user_id', userId)
+        .maybeSingle()
+    );
     
     if (error || !data) return false;
     return data.is_active && data.months_remaining > 0;
@@ -187,7 +237,7 @@ export const linkUserToIp = async (userId: string) => {
   try {
     const ip = await getIP();
     const hashedIp = await hashIP(ip);
-    await supabase.from('ip_sessions').upsert({ ip_address: hashedIp, user_id: userId });
+    await withRetry(() => supabase.from('ip_sessions').upsert({ ip_address: hashedIp, user_id: userId }));
   } catch (e) {
     console.error('Failed to link IP to user', e);
   }
@@ -197,7 +247,7 @@ export const getUserIdByIp = async (): Promise<string | null> => {
   try {
     const ip = await getIP();
     const hashedIp = await hashIP(ip);
-    const { data } = await supabase.from('ip_sessions').select('user_id').eq('ip_address', hashedIp).maybeSingle();
+    const { data } = await withRetry(() => supabase.from('ip_sessions').select('user_id').eq('ip_address', hashedIp).maybeSingle());
     return data?.user_id || null;
   } catch {
     return null;
@@ -208,7 +258,7 @@ export const checkIpSoloUsage = async (): Promise<boolean> => {
   try {
     const ip = await getIP();
     const hashedIp = await hashIP(ip);
-    const { data } = await supabase.from('anonymous_runs').select('ip_address').eq('ip_address', hashedIp).maybeSingle();
+    const { data } = await withRetry(() => supabase.from('anonymous_runs').select('ip_address').eq('ip_address', hashedIp).maybeSingle());
     return !!data;
   } catch {
     return false;
@@ -219,7 +269,7 @@ export const recordIpSoloUsage = async () => {
   try {
     const ip = await getIP();
     const hashedIp = await hashIP(ip);
-    await supabase.from('anonymous_runs').upsert({ ip_address: hashedIp });
+    await withRetry(() => supabase.from('anonymous_runs').upsert({ ip_address: hashedIp }));
   } catch (e) {
     console.error('Failed to record IP usage', e);
   }
@@ -252,11 +302,13 @@ export const getDailyText = async (generator: () => Promise<string>): Promise<st
   try {
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const { data, error } = await supabase
-      .from('daily_run')
-      .select('text')
-      .eq('date', today)
-      .maybeSingle();
+    const { data, error } = await withRetry(() => 
+      supabase
+        .from('daily_run')
+        .select('text')
+        .eq('date', today)
+        .maybeSingle()
+    );
 
     if (data) {
       return data.text;
@@ -277,9 +329,9 @@ export const getDailyText = async (generator: () => Promise<string>): Promise<st
 
 export const initializeUserCredits = async (userId: string) => {
   try {
-    const { data } = await supabase.from('user_credits').select('credits').eq('user_id', userId).maybeSingle();
+    const { data } = await withRetry(() => supabase.from('user_credits').select('credits').eq('user_id', userId).maybeSingle());
     if (!data) {
-      await supabase.from('user_credits').insert({ user_id: userId, credits: 10 });
+      await withRetry(() => supabase.from('user_credits').insert({ user_id: userId, credits: 10 }));
     }
   } catch (e) {
     console.error('Failed to initialize credits', e);
@@ -288,7 +340,7 @@ export const initializeUserCredits = async (userId: string) => {
 
 export const saveHistory = async (userId: string, result: any) => {
   try {
-    const { error } = await supabase.from('history').insert({
+    const { error } = await withRetry(() => supabase.from('history').insert({
       user_id: userId,
       wpm: Math.round(result.wpm),
       accuracy: Math.round(result.accuracy),
@@ -297,45 +349,42 @@ export const saveHistory = async (userId: string, result: any) => {
       difficulty: result.difficulty,
       mode: result.mode,
       text_length: Math.round(result.textLength)
-    });
+    }));
     if (error) throw error;
   } catch (e) {
     console.error('Failed to save history', e);
   }
 };
 
-export const fetchHistory = async (userId: string, retries = 3) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`Fetching history for user: ${userId} (Attempt ${i + 1})`);
-      const { data, error } = await supabase
+export const fetchHistory = async (userId: string) => {
+  try {
+    const { data, error } = await withRetry(() => 
+      supabase
         .from('history')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Supabase error fetching history:', error);
-        throw error;
-      }
-      return data.map((item: any) => ({
-        id: item.id,
-        date: item.created_at,
-        wpm: item.wpm,
-        accuracy: item.accuracy,
-        time: item.time,
-        errors: item.errors,
-        difficulty: item.difficulty,
-        mode: item.mode,
-        textLength: item.text_length
-      }));
-    } catch (e) {
-      console.error(`Failed to fetch history (Attempt ${i + 1}):`, e);
-      if (i === retries - 1) return [];
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        .order('created_at', { ascending: false })
+    );
+    
+    if (error) {
+      console.error('Supabase error fetching history:', error);
+      throw error;
     }
+    return data.map((item: any) => ({
+      id: item.id,
+      date: item.created_at,
+      wpm: item.wpm,
+      accuracy: item.accuracy,
+      time: item.time,
+      errors: item.errors,
+      difficulty: item.difficulty,
+      mode: item.mode,
+      textLength: item.text_length
+    }));
+  } catch (e) {
+    console.error(`Failed to fetch history:`, e);
+    return [];
   }
-  return [];
 };
 
 export const uploadAvatar = async (userId: string, file: File): Promise<string> => {
@@ -361,10 +410,12 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string> 
 
 export const fetchAchievements = async (userId: string) => {
   try {
-    const { data, error } = await supabase
-      .from('user_achievements')
-      .select('achievement_id, unlocked_at')
-      .eq('user_id', userId);
+    const { data, error } = await withRetry(() => 
+      supabase
+        .from('user_achievements')
+        .select('achievement_id, unlocked_at')
+        .eq('user_id', userId)
+    );
     
     if (error) throw error;
     return data;
