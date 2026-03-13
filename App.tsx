@@ -659,10 +659,6 @@ const App: React.FC = () => {
   }, [sfxVolume]);
   useEffect(() => {
     const path = window.location.pathname;
-    if (path === '/legacy' || path === '/legacy.html') {
-      window.location.href = '/legacy.html';
-      return;
-    }
     if (path === '/pandc') {
       setCurrentView(AppView.PRIVACY);
     } else if (path === '/redirect') {
