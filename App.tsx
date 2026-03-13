@@ -665,6 +665,11 @@ const App: React.FC = () => {
   }, [sfxVolume]);
   useEffect(() => {
     const path = window.location.pathname;
+    if (path === '/legacy' || path === '/legacy.html') {
+      // Force a full page reload to the legacy file
+      window.location.href = '/legacy.html';
+      return;
+    }
     if (path === '/pandc') {
       setCurrentView(AppView.PRIVACY);
     } else if (path === '/redirect') {
@@ -2869,6 +2874,12 @@ const App: React.FC = () => {
           className="text-[10px] font-bold text-white hover:text-slate-300 uppercase tracking-widest transition-colors flex items-center gap-2"
         >
            <span className="w-1.5 h-1.5 rounded-full bg-white"></span> Follow us on X
+        </a>
+        <a 
+          href="/legacy.html"
+          className="text-[10px] font-bold text-amber-500 hover:text-amber-400 uppercase tracking-widest transition-colors flex items-center gap-2"
+        >
+           <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Legacy Mode
         </a>
       </footer>
 

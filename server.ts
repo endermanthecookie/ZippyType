@@ -80,9 +80,11 @@ async function startServer() {
   // Middleware to parse JSON bodies
   app.use(express.json());
 
-  // Serve legacy.html
+  // Serve legacy.html - Move to top and use absolute paths
   app.get(['/legacy', '/legacy.html'], (req, res) => {
-    res.sendFile(path.join(__dirname, 'legacy.html'));
+    const legacyPath = path.resolve(process.env.NODE_ENV === "production" ? 'dist/legacy.html' : 'public/legacy.html');
+    console.log(`[Server] Serving legacy mode from: ${legacyPath}`);
+    res.sendFile(legacyPath);
   });
 
   // Discord OAuth Routes
